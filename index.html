@@ -479,22 +479,30 @@ input, textarea, select { font-family: var(--font); }
 .detail-sp { font-size: 12px; color: var(--t3); margin-top: 4px; }
 .detail-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .tag { font-size: 10px; font-weight: 600; padding: 4px 10px; border-radius: 8px; background: var(--bg3); border: .5px solid var(--b2); color: var(--t2); }
-.detail-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-.act-btn-primary {
-  flex: 1; min-width: 120px; height: 44px;
-  background: var(--j4); border: .5px solid var(--j3);
-  color: var(--jade); font-size: 13px; font-weight: 700;
-  border-radius: 12px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  -webkit-tap-highlight-color: transparent;
+.detail-actions {
+  display: flex; flex-direction: column; gap: 8px; margin-top: 14px;
 }
+.detail-actions-row { display: flex; gap: 8px; }
+.act-btn-primary {
+  width: 100%; height: 48px;
+  background: var(--j4); border: .5px solid var(--j3);
+  color: var(--jade); font-size: 14px; font-weight: 700;
+  border-radius: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .12s;
+}
+.act-btn-primary:active { background: var(--j3); }
 .act-btn-secondary {
-  height: 44px; padding: 0 16px;
+  flex: 1; height: 44px; padding: 0 12px;
   background: var(--bg3); border: .5px solid var(--b2);
   color: var(--t2); font-size: 13px; font-weight: 600;
   border-radius: 12px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
   -webkit-tap-highlight-color: transparent;
+  transition: background .12s;
 }
+.act-btn-secondary:active { background: var(--bg4); }
 .detail-stats { display: flex; gap: 8px; flex-wrap: wrap; }
 .dstat { flex: 1; min-width: 60px; background: var(--bg3); border: .5px solid var(--b1); border-radius: 12px; padding: 10px 8px; text-align: center; }
 .dstat-v { font-size: 16px; font-weight: 800; color: var(--jade); font-family: var(--mono); }
@@ -527,23 +535,26 @@ input, textarea, select { font-family: var(--font); }
 .cal-nav { width: 36px; height: 36px; background: var(--bg3); border: .5px solid var(--b2); border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
 .cal-nav svg { width: 14px; height: 14px; stroke: var(--t2); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .cal-title { font-size: 17px; font-weight: 800; color: var(--txt); }
-.cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
-.cal-wday { text-align: center; font-size: 10px; font-weight: 700; color: var(--t3); padding: 6px 0; font-family: var(--mono); }
+.cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
+.cal-wday { text-align: center; font-size: 10px; font-weight: 700; color: var(--t3); padding: 6px 0 8px; font-family: var(--mono); }
 .cal-day {
-  aspect-ratio: 1;
+  height: 42px;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  border-radius: 50%; font-size: 12px; color: var(--t2);
+  border-radius: 10px; color: var(--t2);
   position: relative; cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  min-width: 0; overflow: hidden;
-  line-height: 1;
+  overflow: hidden;
 }
-.cal-day span { font-size: clamp(9px, 2.5vw, 13px); line-height: 1; display: block; }
-.cal-day.today { background: var(--bg3); border: .5px solid var(--b2); color: var(--txt); font-weight: 700; }
-.cal-day.fed { background: var(--j4); color: var(--jade); border: .5px solid var(--j3); font-weight: 700; }
-.cal-day.fed::after { content: ''; position: absolute; bottom: 3px; width: 4px; height: 4px; border-radius: 50%; background: var(--jade); }
+.cal-day span { font-size: 13px; font-weight: 500; line-height: 1; display: block; }
+.cal-day .fed-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--jade); margin-top: 3px; }
+.cal-day:active { background: var(--bg3); }
+.cal-day.today { background: var(--bg3); border: .5px solid var(--b2); color: var(--txt); }
+.cal-day.today span { font-weight: 800; }
+.cal-day.fed { background: var(--j4); color: var(--jade); border: .5px solid var(--j3); }
+.cal-day.fed span { font-weight: 700; }
 .cal-day.empty { cursor: default; }
+.cal-day.empty:active { background: transparent; }
 .filter-chip { padding: 7px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; border: .5px solid var(--b2); background: var(--bg2); color: var(--t3); cursor: pointer; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
 .filter-chip.active { background: var(--j4); color: var(--jade); border-color: var(--j3); }
 .cal-filters { display: flex; gap: 7px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; margin-bottom: 14px; }
@@ -900,7 +911,17 @@ input, textarea, select { font-family: var(--font); }
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- MODAL: 日付詳細 -->
+<div class="modal-ov" id="m-daydetail">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="m-daydetail-title">3月27日の記録</div>
+    <div id="m-daydetail-content"></div>
+    <div style="margin-top:16px">
+      <button class="btn-cancel" style="width:100%" onclick="closeModal('m-daydetail')">閉じる</button>
+    </div>
+  </div>
+</div>
 
 <script>
 
@@ -1056,8 +1077,10 @@ function renderDetail(){
       <div class="detail-tags">${r.gender!=='不明'?`<span class="tag">${r.gender}</span>`:''} ${a?`<span class="tag">${a}</span>`:''} <span class="tag" style="background:${stB};color:${stC}">${pillLabel(s)}</span></div>
       <div class="detail-actions">
         <button class="act-btn-primary" onclick="openFeedModal()">🍽 給餌を記録</button>
-        <button class="act-btn-secondary" onclick="openWeightModal()">⚖ 体重</button>
-        <button class="act-btn-secondary" onclick="openEditReptile('${r.id}')">編集</button>
+        <div class="detail-actions-row">
+          <button class="act-btn-secondary" onclick="openWeightModal()">⚖️ 体重を記録</button>
+          <button class="act-btn-secondary" onclick="openEditReptile('${r.id}')">✏️ 編集</button>
+        </div>
       </div>
     </div>
     <div class="detail-stats">
@@ -1259,7 +1282,12 @@ function renderCalendar(){
   const first=new Date(calState.y,calState.m,1),dim=new Date(calState.y,calState.m+1,0).getDate(),sd=first.getDay(),today=toDate(new Date());
   let g=['日','月','火','水','木','金','土'].map(d=>`<div class="cal-wday">${d}</div>`).join('');
   for(let i=0;i<sd;i++)g+='<div class="cal-day empty"></div>';
-  for(let day=1;day<=dim;day++){const ds=`${calState.y}-${String(calState.m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;g+=`<div class="cal-day ${ds===today?'today':''} ${fedSet.has(ds)?'fed':''}"><span>${day}</span></div>`}
+  for(let day=1;day<=dim;day++){
+    const ds=`${calState.y}-${String(calState.m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isFed=fedSet.has(ds);
+    const isToday=ds===today;
+    g+=`<div class="cal-day ${isToday?'today':''} ${isFed?'fed':''}" onclick="showDayDetail('${ds}')" ><span>${day}</span>${isFed?'<div class="fed-dot"></div>':''}</div>`;
+  }
   document.getElementById('cal-grid').innerHTML=g;
   const recent=[...allLogs].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,10);
   document.getElementById('recent-logs').innerHTML=!recent.length?`<div style="text-align:center;padding:24px;color:var(--t3)">記録がありません</div>`:
@@ -1267,6 +1295,46 @@ function renderCalendar(){
 }
 function changeMonth(dir){calState.m+=dir;if(calState.m>11){calState.m=0;calState.y++}if(calState.m<0){calState.m=11;calState.y--}renderCalendar()}
 function setCalFilter(id){calState.filter=id;renderCalendar()}
+
+function showDayDetail(dateStr){
+  const d=load();
+  const dt=new Date(dateStr);
+  const wdays=['日','月','火','水','木','金','土'];
+  const title=`${dt.getMonth()+1}月${dt.getDate()}日（${wdays[dt.getDay()]}）の記録`;
+  document.getElementById('m-daydetail-title').textContent=title;
+
+  // その日の全給餌ログを収集
+  const items=[];
+  d.reptiles.forEach(r=>{
+    r.feedLogs.forEach(l=>{
+      if(toDate(l.date)===dateStr) items.push({reptile:r, log:l});
+    });
+  });
+
+  let html='';
+  if(!items.length){
+    html=`<div style="text-align:center;padding:32px 0;color:var(--t3)">
+      <div style="font-size:40px;margin-bottom:10px">📅</div>
+      <div style="font-size:14px;font-weight:600">この日の記録はありません</div>
+    </div>`;
+  } else {
+    html=`<div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;font-family:var(--mono)">${items.length}件の給餌記録</div>`;
+    html+=items.map(({reptile:r,log:l})=>`
+      <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg3);border:.5px solid var(--b1);border-radius:13px;margin-bottom:8px">
+        <div style="width:42px;height:42px;background:var(--bg2);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${r.emoji}</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:700;color:var(--txt)">${r.name}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:2px">${l.food}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:13px;font-weight:700;color:${l.ate?'var(--jade)':'var(--amb)'}">${l.ate?l.amount:'拒食'}</div>
+          <div style="font-size:10px;color:var(--t3);margin-top:2px;font-family:var(--mono)">${new Date(l.date).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+      </div>`).join('');
+  }
+  document.getElementById('m-daydetail-content').innerHTML=html;
+  openModal('m-daydetail');
+}
 
 // ── SETTINGS ──
 function renderSettings(){
