@@ -349,10 +349,9 @@ input, textarea, select { font-family: var(--font); }
   transition: width .2s;
 }
 .bn-item.active::before { width: 24px; }
-.bn-ico { font-size: 22px; line-height: 1; transition: transform .2s cubic-bezier(.34,1.56,.64,1); }
-.bn-lbl { font-size: 9px; font-weight: 600; color: var(--t3); letter-spacing: .3px; transition: color .15s; }
-.bn-item.active .bn-lbl { color: var(--jade); }
-.bn-item.active .bn-ico { transform: scale(1.15) translateY(-1px); }
+.bn-ico { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; transition: transform .2s cubic-bezier(.34,1.56,.64,1); color: var(--t3); }
+.bn-ico svg { width: 22px; height: 22px; }
+.bn-item.active .bn-ico { transform: scale(1.15) translateY(-1px); color: var(--jade); }
 
 /* center add button */
 .bn-center { flex: 1; display: flex; align-items: center; justify-content: center; padding-bottom: 8px; }
@@ -566,6 +565,9 @@ input, textarea, select { font-family: var(--font); }
 .cal-day.fed span { font-weight: 700; }
 .cal-day.empty { cursor: default; pointer-events: none; }
 .cal-day.empty:active { background: transparent; }
+.cal-day.next-feed { border: 1px dashed var(--j3); }
+.cal-day.next-feed span { color: var(--jade); opacity: .7; }
+.next-dot { font-size: 8px; line-height: 1; margin-top: 1px; pointer-events: none; }
 .filter-chip { padding: 7px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; border: .5px solid var(--b2); background: var(--bg2); color: var(--t3); cursor: pointer; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
 .filter-chip.active { background: var(--j4); color: var(--jade); border-color: var(--j3); }
 .cal-filters { display: flex; gap: 7px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; margin-bottom: 14px; }
@@ -739,8 +741,38 @@ input, textarea, select { font-family: var(--font); }
     </div>
     <nav class="nav">
       <div class="nav-label">メニュー</div>
-      <button class="nav-item active" id="nav-home" onclick="navigate('home')"><span class="icon">⌂</span> ホーム</button>
-      <button class="nav-item" id="nav-calendar" onclick="navigate('calendar')"><span class="icon">📅</span> カレンダー</button>
+      <button class="nav-item active" id="nav-home" onclick="navigate('home')">
+        <span class="icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/>
+            <path d="M9 21V12h6v9"/>
+          </svg>
+        </span> ホーム
+      </button>
+      <button class="nav-item" id="nav-calendar" onclick="navigate('calendar')">
+        <span class="icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="3"/>
+            <line x1="3" y1="9" x2="21" y2="9"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <circle cx="8" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+            <circle cx="16" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+            <circle cx="8" cy="18" r="1.2" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="18" r="1.2" fill="currentColor" stroke="none"/>
+          </svg>
+        </span> カレンダー
+      </button>
+      <button class="nav-item" id="nav-stats" onclick="navigate('stats')">
+        <span class="icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="14" width="4" height="8" rx="1.5" fill="currentColor" stroke="none" opacity=".7"/>
+            <rect x="10" y="8" width="4" height="14" rx="1.5" fill="currentColor" stroke="none" opacity=".85"/>
+            <rect x="18" y="3" width="4" height="19" rx="1.5" fill="currentColor" stroke="none"/>
+          </svg>
+        </span> 統計
+      </button>
       <div class="nav-sep"></div>
       <div class="nav-label">爬虫類</div>
       <div id="sb-reptiles"></div>
@@ -748,7 +780,14 @@ input, textarea, select { font-family: var(--font); }
     </nav>
     <div class="sidebar-footer">
       <div class="sync-row" style="margin-bottom:6px"><div id="sync-status"></div></div>
-      <button class="nav-item" id="nav-settings" onclick="navigate('settings')"><span class="icon">⚙</span> 設定</button>
+      <button class="nav-item" id="nav-settings" onclick="navigate('settings')">
+      <span class="icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+      </span> 設定
+    </button>
     </div>
   </aside>
 
@@ -798,8 +837,18 @@ input, textarea, select { font-family: var(--font); }
           </div>
           <div class="cal-grid" id="cal-wdays" style="grid-auto-rows:auto;gap:2px;margin-bottom:4px"></div>
           <div class="cal-grid" id="cal-grid"></div>
+          <div style="display:flex;gap:14px;margin-top:12px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--t3)"><div style="width:12px;height:12px;border-radius:3px;background:var(--j4);border:.5px solid var(--j3)"></div>給餌済み</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--t3)"><div style="width:12px;height:12px;border-radius:3px;border:1px dashed var(--j3)"></div>給餌予定日</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--t3)"><div style="width:12px;height:12px;border-radius:3px;background:var(--bg3);border:.5px solid var(--b2)"></div>今日</div>
+          </div>
         </div>
         <div class="card"><span class="sec-lbl">直近の給餌記録</span><div id="recent-logs"></div></div>
+      </div>
+
+      <!-- STATS -->
+      <div class="page" id="page-stats">
+        <div id="stats-content"></div>
       </div>
 
       <!-- SETTINGS -->
@@ -825,6 +874,18 @@ input, textarea, select { font-family: var(--font); }
               <button onclick="openSyncModal()" style="width:100%;margin-top:10px;height:42px;border-radius:12px;border:.5px solid var(--b2);background:var(--bg3);color:var(--t2);font-size:13px;font-weight:600;cursor:pointer">別のデバイスと同期</button>
             </div>
             <div class="card">
+              <span class="sec-lbl">🔔 プッシュ通知</span>
+              <div style="font-size:12px;color:var(--t3);margin-bottom:10px;line-height:1.6">給餌タイミングをお知らせします</div>
+              <div id="notif-status" style="font-size:12px;color:var(--t3);margin-bottom:10px"></div>
+              <button onclick="requestNotifPermission()" id="notif-btn" style="width:100%;height:42px;border-radius:12px;border:.5px solid var(--j3);background:var(--j4);color:var(--jade);font-size:13px;font-weight:700;cursor:pointer">通知を有効にする</button>
+            </div>
+            <div class="card">
+              <span class="sec-lbl">同期状態</span>
+              <div id="sync-status-mob" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t3)">
+                <span style="font-size:16px">◌</span><span>接続中...</span>
+              </div>
+            </div>
+            <div class="card">
               <span class="sec-lbl">⚠️ 危険な操作</span>
               <button class="btn-danger" style="width:100%;margin-bottom:8px" onclick="if(confirm('Firebase接続を解除しますか？'))resetFirebase()">Firebase接続を変更</button>
               <button class="btn-danger" style="width:100%" onclick="if(confirm('全データを削除しますか？'))clearAllData()">データを全削除</button>
@@ -839,26 +900,53 @@ input, textarea, select { font-family: var(--font); }
   <nav class="bottom-nav">
     <div class="bn-inner">
       <button class="bn-item active" id="bn-home" onclick="navigate('home')">
-        <span class="bn-ico">⌂</span>
+        <span class="bn-ico">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/>
+            <path d="M9 21V12h6v9"/>
+          </svg>
+        </span>
         <span class="bn-lbl">ホーム</span>
       </button>
       <button class="bn-item" id="bn-calendar" onclick="navigate('calendar')">
-        <span class="bn-ico">📅</span>
+        <span class="bn-ico">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="3"/>
+            <line x1="3" y1="9" x2="21" y2="9"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <circle cx="8" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+            <circle cx="16" cy="14" r="1.2" fill="currentColor" stroke="none"/>
+            <circle cx="8" cy="18" r="1.2" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="18" r="1.2" fill="currentColor" stroke="none"/>
+          </svg>
+        </span>
         <span class="bn-lbl">カレンダー</span>
       </button>
       <div class="bn-center">
         <button class="bn-add" onclick="openAddReptile()">＋</button>
       </div>
+      <button class="bn-item" id="bn-stats" onclick="navigate('stats')">
+        <span class="bn-ico">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="14" width="4" height="8" rx="1.5" fill="currentColor" stroke="none" opacity=".6"/>
+            <rect x="10" y="8" width="4" height="14" rx="1.5" fill="currentColor" stroke="none" opacity=".8"/>
+            <rect x="18" y="3" width="4" height="19" rx="1.5" fill="currentColor" stroke="none"/>
+            <polyline points="2 14 6 10 10 12 14 7 18 3" stroke-width="1.5" opacity=".5"/>
+          </svg>
+        </span>
+        <span class="bn-lbl">統計</span>
+      </button>
       <button class="bn-item" id="bn-settings" onclick="navigate('settings')">
-        <span class="bn-ico">⚙</span>
+        <span class="bn-ico">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+        </span>
         <span class="bn-lbl">設定</span>
       </button>
-      <div class="bn-item" style="cursor:default">
-        <div id="sync-status-mob" style="display:flex;flex-direction:column;align-items:center;gap:2px">
-          <span style="font-size:16px;color:var(--t3)">◌</span>
-          <span style="font-size:9px;color:var(--t3)">同期中</span>
-        </div>
-      </div>
     </div>
   </nav>
 
@@ -993,16 +1081,16 @@ function navigate(p){
   page=p;document.getElementById('page-'+p).classList.add('active');
   const navEl=document.getElementById('nav-'+p);if(navEl)navEl.classList.add('active');
   const bnEl=document.getElementById('bn-'+p);if(bnEl)bnEl.classList.add('active');
-  const titles={home:'ホーム',calendar:'カレンダー',settings:'設定',detail:repId?load().reptiles.find(r=>r.id===repId)?.name||'詳細':'詳細'};
+  const titles={home:'ホーム',calendar:'カレンダー',stats:'統計',settings:'設定',detail:repId?load().reptiles.find(r=>r.id===repId)?.name||'詳細':'詳細'};
   document.getElementById('tb-title').textContent=titles[p]||p;
   document.getElementById('tb-action').style.display=p==='home'?'flex':'none';
   // mobile FAB: show on detail page only
 
-  if(p==='home')renderHome();else if(p==='calendar')renderCalendar();else if(p==='settings')renderSettings();else if(p==='detail')renderDetail();
+  if(p==='home')renderHome();else if(p==='calendar')renderCalendar();else if(p==='stats')renderStats();else if(p==='settings')renderSettings();else if(p==='detail')renderDetail();
   closeSidebar();
 }
 function openDetail(id){repId=id;navigate('detail')}
-window.refreshAll=function(){if(page==='home')renderHome();else if(page==='calendar')renderCalendar();else if(page==='settings')renderSettings();else if(page==='detail')renderDetail();renderSidebar()}
+window.refreshAll=function(){if(page==='home')renderHome();else if(page==='calendar')renderCalendar();else if(page==='stats')renderStats();else if(page==='settings')renderSettings();else if(page==='detail')renderDetail();renderSidebar()}
 
 // ── SIDEBAR ──
 function renderSidebar(){
@@ -1292,6 +1380,22 @@ function renderCalendar(){
   const allLogs=calState.filter?(d.reptiles.find(r=>r.id===calState.filter)?.feedLogs||[]):d.reptiles.flatMap(r=>r.feedLogs);
   const fedSet=new Set(allLogs.filter(l=>l.ate).map(l=>toDate(l.date)));
   const first=new Date(calState.y,calState.m,1),dim=new Date(calState.y,calState.m+1,0).getDate(),sd=first.getDay(),today=toDate(new Date());
+  // 次回給餌予定日セット（今日から60日先まで）
+  const nextFeedSet = new Set();
+  d.reptiles.forEach(r => {
+    const last = lastFed(r);
+    if(!last) return;
+    const nextDate = new Date(new Date(last).getTime() + r.interval * 864e5);
+    const ds = toDate(nextDate);
+    nextFeedSet.add(ds + ':' + r.emoji);
+  });
+  const nextFeedMap = {}; // date -> [emoji, ...]
+  nextFeedSet.forEach(v => {
+    const [ds, emoji] = v.split(':');
+    if(!nextFeedMap[ds]) nextFeedMap[ds] = [];
+    nextFeedMap[ds].push(emoji);
+  });
+
   // 曜日ヘッダー（別グリッド）
   const wdaysEl = document.getElementById('cal-wdays');
   if(wdaysEl) wdaysEl.innerHTML = ['日','月','火','水','木','金','土'].map(w=>`<div class="cal-wday">${w}</div>`).join('');
@@ -1303,7 +1407,13 @@ function renderCalendar(){
     const ds=`${calState.y}-${String(calState.m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const isFed=fedSet.has(ds);
     const isToday=ds===today;
-    g+=`<div class="cal-day ${isToday?'today':''} ${isFed?'fed':''}" onclick="showDayDetail('${ds}')"><span>${day}</span>${isFed?'<div class="fed-dot"></div>':''}</div>`;
+    const nextEmojis=nextFeedMap[ds];
+    const isNext=!isFed&&nextEmojis;
+    g+=`<div class="cal-day ${isToday?'today':''} ${isFed?'fed':''} ${isNext?'next-feed':''}" onclick="showDayDetail('${ds}')">
+      <span>${day}</span>
+      ${isFed?'<div class="fed-dot"></div>':''}
+      ${isNext?`<div class="next-dot">${nextEmojis.slice(0,2).join('')}</div>`:''}
+    </div>`;
   }
   document.getElementById('cal-grid').innerHTML=g;
   const recent=[...allLogs].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,10);
@@ -1453,8 +1563,200 @@ function applySyncCode(){
   setTimeout(()=>location.reload(),1000);
 }
 
+// ── STATS ──
+let statsChart1=null, statsChart2=null;
+function renderStats(){
+  const d=load();
+  const el=document.getElementById('stats-content');
+  if(!d.reptiles.length){
+    el.innerHTML=`<div class="empty"><span class="empty-icon">📊</span><div class="empty-title">データがありません</div><div class="empty-sub">爬虫類を追加して給餌を記録すると統計が表示されます</div></div>`;
+    return;
+  }
+
+  // 全ログ集計
+  const allLogs=d.reptiles.flatMap(r=>r.feedLogs);
+  const totalFeeds=allLogs.length;
+  const totalRejected=allLogs.filter(l=>!l.ate).length;
+  const rejectRate=totalFeeds?Math.round(totalRejected/totalFeeds*100):0;
+
+  // 月別給餌数（過去6ヶ月）
+  const monthLabels=[], monthCounts=[], monthRejects=[];
+  for(let i=5;i>=0;i--){
+    const dt=new Date(); dt.setMonth(dt.getMonth()-i);
+    const y=dt.getFullYear(), m=dt.getMonth();
+    const label=`${y}-${String(m+1).padStart(2,'0')}`;
+    const logs=allLogs.filter(l=>{const ld=new Date(l.date);return ld.getFullYear()===y&&ld.getMonth()===m});
+    monthLabels.push(`${m+1}月`);
+    monthCounts.push(logs.filter(l=>l.ate).length);
+    monthRejects.push(logs.filter(l=>!l.ate).length);
+  }
+
+  // 爬虫類別給餌数
+  const perReptile=d.reptiles.map(r=>({name:r.name,emoji:r.emoji,count:r.feedLogs.filter(l=>l.ate).length,reject:r.feedLogs.filter(l=>!l.ate).length}));
+
+  // 餌の種類集計
+  const foodMap={};
+  allLogs.filter(l=>l.ate).forEach(l=>{foodMap[l.food]=(foodMap[l.food]||0)+1});
+  const foodSorted=Object.entries(foodMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  el.innerHTML=`
+  <!-- サマリー -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+    <div class="card" style="text-align:center;padding:14px 8px">
+      <div style="font-size:26px;font-weight:800;color:var(--jade);font-family:var(--mono)">${totalFeeds}</div>
+      <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">総給餌数</div>
+    </div>
+    <div class="card" style="text-align:center;padding:14px 8px">
+      <div style="font-size:26px;font-weight:800;color:${rejectRate>20?'var(--red)':'var(--jade)'};font-family:var(--mono)">${rejectRate}%</div>
+      <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">拒食率</div>
+    </div>
+    <div class="card" style="text-align:center;padding:14px 8px">
+      <div style="font-size:26px;font-weight:800;color:var(--jade);font-family:var(--mono)">${d.reptiles.length}</div>
+      <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">管理中</div>
+    </div>
+  </div>
+
+  <!-- 月別グラフ -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="sec-lbl" style="margin-bottom:12px">月別給餌数（過去6ヶ月）</div>
+    <div style="position:relative;height:180px"><canvas id="sc1"></canvas></div>
+  </div>
+
+  <!-- 爬虫類別 -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="sec-lbl" style="margin-bottom:12px">爬虫類別の記録</div>
+    ${perReptile.map(r=>`
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <span style="font-size:22px">${r.emoji}</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:var(--txt);margin-bottom:4px">${r.name}</div>
+          <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+            <div style="height:100%;background:var(--jade);border-radius:3px;width:${totalFeeds?Math.round(r.count/totalFeeds*100):0}%;transition:width .4s"></div>
+          </div>
+        </div>
+        <div style="text-align:right;min-width:48px">
+          <div style="font-size:14px;font-weight:700;color:var(--jade);font-family:var(--mono)">${r.count}</div>
+          ${r.reject?`<div style="font-size:10px;color:var(--amb);font-family:var(--mono)">拒${r.reject}</div>`:''}
+        </div>
+      </div>`).join('')}
+  </div>
+
+  <!-- 餌の種類 -->
+  ${foodSorted.length?`<div class="card" style="margin-bottom:14px">
+    <div class="sec-lbl" style="margin-bottom:12px">よく使う餌 TOP5</div>
+    ${foodSorted.map(([food,cnt],i)=>`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="width:20px;height:20px;background:var(--j4);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--jade);flex-shrink:0">${i+1}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:var(--txt);margin-bottom:3px">${food}</div>
+          <div style="height:5px;background:var(--bg3);border-radius:3px;overflow:hidden">
+            <div style="height:100%;background:var(--j2);border-radius:3px;width:${foodSorted[0][1]?Math.round(cnt/foodSorted[0][1]*100):0}%;transition:width .4s"></div>
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--t2);font-family:var(--mono);min-width:28px;text-align:right">${cnt}</div>
+      </div>`).join('')}
+  </div>`:''}
+  `;
+
+  // Chart.js 月別グラフ
+  setTimeout(()=>{
+    const ctx=document.getElementById('sc1'); if(!ctx) return;
+    if(statsChart1){statsChart1.destroy();statsChart1=null;}
+    statsChart1=new Chart(ctx,{
+      type:'bar',
+      data:{
+        labels:monthLabels,
+        datasets:[
+          {label:'給餌',data:monthCounts,backgroundColor:'rgba(0,201,123,.7)',borderRadius:6,borderSkipped:false},
+          {label:'拒食',data:monthRejects,backgroundColor:'rgba(255,82,82,.5)',borderRadius:6,borderSkipped:false}
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{backgroundColor:'#0c1610',borderColor:'#22392a',borderWidth:1,titleColor:'#6fa882',bodyColor:'#dff0e8'}},
+        scales:{
+          x:{grid:{display:false},ticks:{color:'#3d5e48',font:{family:'DM Mono',size:10}}},
+          y:{grid:{color:'#1a2e1e',drawBorder:false},ticks:{color:'#3d5e48',font:{family:'DM Mono',size:10},stepSize:1}}
+        }
+      }
+    });
+  },100);
+}
+
+// ── NOTIFICATIONS ──
+function requestNotifPermission(){
+  if(!('Notification' in window)){
+    toast('このブラウザは通知非対応です');return;
+  }
+  Notification.requestPermission().then(perm=>{
+    if(perm==='granted'){
+      localStorage.setItem('notif_enabled','1');
+      updateNotifUI();
+      toast('通知を有効にしました！');
+      checkAndNotify();
+    } else {
+      toast('通知が拒否されました。設定から変更してください');
+    }
+  });
+}
+
+function updateNotifUI(){
+  const btn=document.getElementById('notif-btn');
+  const status=document.getElementById('notif-status');
+  if(!btn||!status) return;
+  if(!('Notification' in window)){
+    status.textContent='このブラウザは通知非対応です';
+    btn.style.display='none';return;
+  }
+  if(Notification.permission==='granted'){
+    status.innerHTML='<span style="color:var(--jade)">● 通知オン</span>';
+    btn.textContent='通知をテストする';
+    btn.onclick=()=>testNotif();
+  } else if(Notification.permission==='denied'){
+    status.innerHTML='<span style="color:var(--red)">● 通知がブロックされています</span><br><span style="font-size:11px;color:var(--t3)">iPhoneの設定 → Safari → 通知から変更できます</span>';
+    btn.style.display='none';
+  } else {
+    status.textContent='通知を有効にすると給餌タイミングをお知らせします';
+  }
+}
+
+function testNotif(){
+  new Notification('🦎 ReptiFeed テスト通知',{body:'通知が正常に動作しています！',icon:'/favicon.ico'});
+}
+
+function checkAndNotify(){
+  if(Notification.permission!=='granted') return;
+  const d=load();
+  const lastCheck=localStorage.getItem('notif_last_check');
+  const todayStr=toDate(new Date());
+  if(lastCheck===todayStr) return; // 1日1回
+  localStorage.setItem('notif_last_check',todayStr);
+
+  d.reptiles.forEach(r=>{
+    const s=status(r);
+    if(s==='overdue'){
+      const days=daysSince(r);
+      new Notification(`🦎 ${r.name}の給餌タイミングです`,{
+        body:`前回から${days}日が経過しています。`,
+        tag:'feed-'+r.id
+      });
+    } else if(s==='soon'){
+      new Notification(`⏰ ${r.name}の給餌は明日です`,{
+        body:`${r.name}（${r.species}）の給餌間隔は${r.interval}日です。`,
+        tag:'feed-soon-'+r.id
+      });
+    }
+  });
+}
+
 function toast(msg){const el=document.getElementById('toast');el.textContent='✓ '+msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2200)}
-function refresh(){if(page==='home')renderHome();else if(page==='calendar')renderCalendar();else if(page==='settings')renderSettings();else if(page==='detail')renderDetail();renderSidebar()}
+function refresh(){if(page==='home')renderHome();else if(page==='calendar')renderCalendar();else if(page==='stats')renderStats();else if(page==='settings')renderSettings();else if(page==='detail')renderDetail();renderSidebar()}
+
+// 起動時に通知チェック
+setTimeout(()=>{
+  updateNotifUI();
+  if(localStorage.getItem('notif_enabled')==='1') checkAndNotify();
+},1500);
 
 </script>
 </body>
