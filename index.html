@@ -529,7 +529,17 @@ input, textarea, select { font-family: var(--font); }
 .cal-title { font-size: 17px; font-weight: 800; color: var(--txt); }
 .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
 .cal-wday { text-align: center; font-size: 10px; font-weight: 700; color: var(--t3); padding: 6px 0; font-family: var(--mono); }
-.cal-day { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px; color: var(--t2); position: relative; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.cal-day {
+  aspect-ratio: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 12px; color: var(--t2);
+  position: relative; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 0; overflow: hidden;
+  line-height: 1;
+}
+.cal-day span { font-size: clamp(9px, 2.5vw, 13px); line-height: 1; display: block; }
 .cal-day.today { background: var(--bg3); border: .5px solid var(--b2); color: var(--txt); font-weight: 700; }
 .cal-day.fed { background: var(--j4); color: var(--jade); border: .5px solid var(--j3); font-weight: 700; }
 .cal-day.fed::after { content: ''; position: absolute; bottom: 3px; width: 4px; height: 4px; border-radius: 50%; background: var(--jade); }
@@ -1073,15 +1083,157 @@ function renderFeedTab(r){
 function renderWeightTab(r){
   const logs=[...r.weightLogs].sort((a,b)=>new Date(a.date)-new Date(b.date));
   const el=document.getElementById('tab-weight');
-  let html='<div class="sec-lbl" style="margin-bottom:12px">体重推移</div>';
-  if(logs.length>=2)html+=`<div class="card" style="margin-bottom:14px"><div class="chart-wrap"><canvas id="wc"></canvas></div></div>`;
-  if(logs.length){const lat=logs[logs.length-1],prev=logs.length>=2?logs[logs.length-2]:null,diff=prev?lat.grams-prev.grams:null;
-    html+=`<div class="g2" style="margin-bottom:14px"><div class="stat-card"><div class="stat-val" style="color:var(--jade)">${fmtW(lat.grams)}</div><div class="stat-lbl">最新体重</div></div>${diff!==null?`<div class="stat-card"><div class="stat-val" style="color:${diff>=0?'var(--jade)':'var(--red)'}">${diff>=0?'+':''}${diff.toFixed(1)}g</div><div class="stat-lbl">前回比</div></div>`:''}</div>`}
+
+  // 統計計算
+  const lat  = logs.length ? logs[logs.length-1] : null;
+  const prev = logs.length>=2 ? logs[logs.length-2] : null;
+  const diff = lat&&prev ? lat.grams - prev.grams : null;
+  const maxW = logs.length ? Math.max(...logs.map(l=>l.grams)) : 0;
+  const minW = logs.length ? Math.min(...logs.map(l=>l.grams)) : 0;
+  const totalGain = logs.length>=2 ? logs[logs.length-1].grams - logs[0].grams : null;
+
+  let html = '';
+
+  // ── 統計カード ──
+  if(lat){
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div class="dstat" style="background:var(--bg2);border:.5px solid var(--b1);border-radius:14px;padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:800;color:var(--jade);font-family:var(--mono);letter-spacing:-1px">${fmtW(lat.grams)}</div>
+        <div style="font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-top:5px">最新体重</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:3px;font-family:var(--mono)">${lat.date}</div>
+      </div>
+      <div class="dstat" style="background:var(--bg2);border:.5px solid var(--b1);border-radius:14px;padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:800;font-family:var(--mono);letter-spacing:-1px;color:${diff===null?'var(--t3)':diff>0?'var(--jade)':diff<0?'var(--red)':'var(--t2)'}">${diff===null?'--':diff>0?'+'+diff.toFixed(1)+'g':diff===0?'±0g':diff.toFixed(1)+'g'}</div>
+        <div style="font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-top:5px">前回比</div>
+        <div style="font-size:10px;margin-top:3px;color:${diff>0?'var(--jade)':diff<0?'var(--red)':'var(--t3)'}">${diff>0?'📈 増加中':diff<0?'📉 減少中':diff===0?'横ばい':'--'}</div>
+      </div>
+    </div>`;
+
+    if(totalGain!==null){
+      html+=`<div style="background:var(--bg2);border:.5px solid var(--b1);border-radius:14px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px">
+        <div style="flex:1">
+          <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:4px">記録期間の総増減</div>
+          <div style="font-size:18px;font-weight:800;color:${totalGain>=0?'var(--jade)':'var(--red)'};font-family:var(--mono)">${totalGain>=0?'+':''}${totalGain.toFixed(1)}g</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:10px;color:var(--t3);margin-bottom:2px">最高 <span style="color:var(--jade);font-family:var(--mono);font-weight:700">${fmtW(maxW)}</span></div>
+          <div style="font-size:10px;color:var(--t3)">最低 <span style="color:var(--t2);font-family:var(--mono);font-weight:700">${fmtW(minW)}</span></div>
+        </div>
+      </div>`;
+    }
+  }
+
+  // ── グラフ ──
+  if(logs.length>=2){
+    html+=`<div style="background:var(--bg2);border:.5px solid var(--b1);border-radius:14px;padding:16px;margin-bottom:14px">
+      <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">体重推移グラフ</div>
+      <div style="position:relative;height:180px"><canvas id="wc"></canvas></div>
+    </div>`;
+  }
+
+  // ── 記録一覧 ──
   html+='<div class="sec-lbl" style="margin-bottom:8px">記録一覧</div>';
-  if(!logs.length)html+=`<div class="empty"><div class="empty-icon">⚖️</div><div class="empty-title">体重記録がありません</div></div>`;
-  else html+=[...logs].reverse().map(l=>`<div class="log-item"><div class="log-ind" style="background:var(--jade)"></div><div class="log-date">${l.date}</div><div style="flex:1"><div class="log-amt" style="color:var(--jade)">${fmtW(l.grams)}</div>${l.notes?`<div style="font-size:10px;color:var(--t3)">${l.notes}</div>`:''}</div><button class="del-btn" onclick="delWeight('${r.id}','${l.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div>`).join('');
-  el.innerHTML=html;
-  if(logs.length>=2)setTimeout(()=>{const ctx=document.getElementById('wc');if(!ctx)return;if(wChart){wChart.destroy();wChart=null}wChart=new Chart(ctx,{type:'line',data:{labels:logs.map(l=>l.date.slice(5)),datasets:[{data:logs.map(l=>l.grams),borderColor:'#00c97b',backgroundColor:'rgba(0,201,123,.08)',borderWidth:2,pointBackgroundColor:'#00c97b',pointRadius:5,fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#192b1e'},ticks:{color:'#3d5e48',font:{family:'DM Mono'}}},y:{grid:{color:'#192b1e'},ticks:{color:'#3d5e48',callback:v=>v+'g',font:{family:'DM Mono'}}}}}})},100);
+  if(!logs.length){
+    html+=`<div class="empty"><span class="empty-icon">⚖️</span><div class="empty-title">体重記録がありません</div><div class="empty-sub">右下の＋ボタンから記録を追加</div></div>`;
+  } else {
+    html+=[...logs].reverse().map((l,i,arr)=>{
+      const prevL = arr[i+1];
+      const d = prevL ? l.grams - prevL.grams : null;
+      const arrow = d===null?'':d>0?`<span style="color:var(--jade);font-size:10px">▲ +${d.toFixed(1)}g</span>`:d<0?`<span style="color:var(--red);font-size:10px">▼ ${d.toFixed(1)}g</span>`:`<span style="color:var(--t3);font-size:10px">— 変化なし</span>`;
+      return`<div class="log-item">
+        <div class="log-ind" style="background:${d===null?'var(--t3)':d>0?'var(--jade)':d<0?'var(--red)':'var(--t3)'}"></div>
+        <div class="log-date">${l.date}</div>
+        <div style="flex:1">
+          <div class="log-amt" style="color:var(--jade)">${fmtW(l.grams)}</div>
+          <div style="margin-top:2px">${arrow}</div>
+          ${l.notes?`<div style="font-size:10px;color:var(--t3)">${l.notes}</div>`:''}
+        </div>
+        <button class="del-btn" onclick="delWeight('${r.id}','${l.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+      </div>`;
+    }).join('');
+  }
+
+  el.innerHTML = html;
+
+  // ── Chart.js描画 ──
+  if(logs.length>=2){
+    setTimeout(()=>{
+      const ctx = document.getElementById('wc');
+      if(!ctx) return;
+      if(wChart){ wChart.destroy(); wChart=null; }
+
+      // グラデーション
+      const chartCtx = ctx.getContext('2d');
+      const grad = chartCtx.createLinearGradient(0,0,0,180);
+      grad.addColorStop(0,'rgba(0,201,123,.25)');
+      grad.addColorStop(1,'rgba(0,201,123,0)');
+
+      // 各点の色（増加=緑、減少=赤、最初=グレー）
+      const pointColors = logs.map((l,i)=>{
+        if(i===0) return '#6fa882';
+        return l.grams >= logs[i-1].grams ? '#00c97b' : '#ff5252';
+      });
+
+      wChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: logs.map(l=>l.date.slice(5)),
+          datasets: [{
+            data: logs.map(l=>l.grams),
+            borderColor: '#00c97b',
+            backgroundColor: grad,
+            borderWidth: 2.5,
+            pointBackgroundColor: pointColors,
+            pointBorderColor: '#070d09',
+            pointBorderWidth: 2,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            fill: true,
+            tension: 0.35,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { intersect: false, mode: 'index' },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#0c1610',
+              borderColor: '#22392a',
+              borderWidth: 1,
+              titleColor: '#6fa882',
+              bodyColor: '#dff0e8',
+              padding: 10,
+              callbacks: {
+                label: ctx => ` ${fmtW(ctx.parsed.y)}`,
+                afterLabel: (ctx) => {
+                  const i = ctx.dataIndex;
+                  if(i===0) return '';
+                  const d = logs[i].grams - logs[i-1].grams;
+                  return d>=0 ? ` ▲ +${d.toFixed(1)}g` : ` ▼ ${d.toFixed(1)}g`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: '#1a2e1e', drawBorder: false },
+              ticks: { color: '#3d5e48', font: { family:'DM Mono', size:10 }, maxRotation:0 }
+            },
+            y: {
+              grid: { color: '#1a2e1e', drawBorder: false },
+              ticks: {
+                color: '#3d5e48',
+                font: { family:'DM Mono', size:10 },
+                callback: v => v+'g'
+              }
+            }
+          }
+        }
+      });
+    }, 100);
+  }
 }
 
 function renderPhotoTab(r){
@@ -1107,7 +1259,7 @@ function renderCalendar(){
   const first=new Date(calState.y,calState.m,1),dim=new Date(calState.y,calState.m+1,0).getDate(),sd=first.getDay(),today=toDate(new Date());
   let g=['日','月','火','水','木','金','土'].map(d=>`<div class="cal-wday">${d}</div>`).join('');
   for(let i=0;i<sd;i++)g+='<div class="cal-day empty"></div>';
-  for(let day=1;day<=dim;day++){const ds=`${calState.y}-${String(calState.m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;g+=`<div class="cal-day ${ds===today?'today':''} ${fedSet.has(ds)?'fed':''}">${day}</div>`}
+  for(let day=1;day<=dim;day++){const ds=`${calState.y}-${String(calState.m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;g+=`<div class="cal-day ${ds===today?'today':''} ${fedSet.has(ds)?'fed':''}"><span>${day}</span></div>`}
   document.getElementById('cal-grid').innerHTML=g;
   const recent=[...allLogs].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,10);
   document.getElementById('recent-logs').innerHTML=!recent.length?`<div style="text-align:center;padding:24px;color:var(--t3)">記録がありません</div>`:
