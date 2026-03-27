@@ -480,21 +480,21 @@ input, textarea, select { font-family: var(--font); }
 .detail-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .tag { font-size: 10px; font-weight: 600; padding: 4px 10px; border-radius: 8px; background: var(--bg3); border: .5px solid var(--b2); color: var(--t2); }
 .detail-actions {
-  display: flex; flex-direction: column; gap: 8px; margin-top: 14px;
+  display: flex; flex-direction: column; gap: 10px; margin-top: 16px;
 }
-.detail-actions-row { display: flex; gap: 8px; }
+.detail-actions-row { display: flex; gap: 10px; }
 .act-btn-primary {
-  width: 100%; height: 48px;
+  width: 100%; height: 50px;
   background: var(--j4); border: .5px solid var(--j3);
-  color: var(--jade); font-size: 14px; font-weight: 700;
+  color: var(--jade); font-size: 15px; font-weight: 700;
   border-radius: 14px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 8px;
   -webkit-tap-highlight-color: transparent;
-  transition: background .12s;
+  transition: background .12s; letter-spacing: -.2px;
 }
 .act-btn-primary:active { background: var(--j3); }
 .act-btn-secondary {
-  flex: 1; height: 44px; padding: 0 12px;
+  flex: 1; height: 46px; padding: 0 12px;
   background: var(--bg3); border: .5px solid var(--b2);
   color: var(--t2); font-size: 13px; font-weight: 600;
   border-radius: 12px; cursor: pointer;
@@ -531,29 +531,40 @@ input, textarea, select { font-family: var(--font); }
 .del-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
 
 /* calendar */
-.cal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.cal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .cal-nav { width: 36px; height: 36px; background: var(--bg3); border: .5px solid var(--b2); border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
 .cal-nav svg { width: 14px; height: 14px; stroke: var(--t2); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .cal-title { font-size: 17px; font-weight: 800; color: var(--txt); }
-.cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
-.cal-wday { text-align: center; font-size: 10px; font-weight: 700; color: var(--t3); padding: 6px 0 8px; font-family: var(--mono); }
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 40px;
+  gap: 2px;
+}
+.cal-wday {
+  text-align: center; font-size: 10px; font-weight: 700;
+  color: var(--t3); padding: 4px 0 8px; font-family: var(--mono);
+  height: auto; /* wday行はauto */
+}
 .cal-day {
-  height: 42px;
+  height: 40px;
+  max-height: 40px;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  border-radius: 10px; color: var(--t2);
+  border-radius: 8px; color: var(--t2);
   position: relative; cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   overflow: hidden;
+  box-sizing: border-box;
 }
-.cal-day span { font-size: 13px; font-weight: 500; line-height: 1; display: block; }
-.cal-day .fed-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--jade); margin-top: 3px; }
+.cal-day span { font-size: 13px; font-weight: 500; line-height: 1; display: block; pointer-events: none; }
+.cal-day .fed-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--jade); margin-top: 2px; pointer-events: none; }
 .cal-day:active { background: var(--bg3); }
 .cal-day.today { background: var(--bg3); border: .5px solid var(--b2); color: var(--txt); }
 .cal-day.today span { font-weight: 800; }
 .cal-day.fed { background: var(--j4); color: var(--jade); border: .5px solid var(--j3); }
 .cal-day.fed span { font-weight: 700; }
-.cal-day.empty { cursor: default; }
+.cal-day.empty { cursor: default; pointer-events: none; }
 .cal-day.empty:active { background: transparent; }
 .filter-chip { padding: 7px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; border: .5px solid var(--b2); background: var(--bg2); color: var(--t3); cursor: pointer; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
 .filter-chip.active { background: var(--j4); color: var(--jade); border-color: var(--j3); }
@@ -785,6 +796,7 @@ input, textarea, select { font-family: var(--font); }
             <div class="cal-title" id="cal-title"></div>
             <button class="cal-nav" onclick="changeMonth(1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
           </div>
+          <div class="cal-grid" id="cal-wdays" style="grid-auto-rows:auto;gap:2px;margin-bottom:4px"></div>
           <div class="cal-grid" id="cal-grid"></div>
         </div>
         <div class="card"><span class="sec-lbl">直近の給餌記録</span><div id="recent-logs"></div></div>
@@ -1280,13 +1292,18 @@ function renderCalendar(){
   const allLogs=calState.filter?(d.reptiles.find(r=>r.id===calState.filter)?.feedLogs||[]):d.reptiles.flatMap(r=>r.feedLogs);
   const fedSet=new Set(allLogs.filter(l=>l.ate).map(l=>toDate(l.date)));
   const first=new Date(calState.y,calState.m,1),dim=new Date(calState.y,calState.m+1,0).getDate(),sd=first.getDay(),today=toDate(new Date());
-  let g=['日','月','火','水','木','金','土'].map(d=>`<div class="cal-wday">${d}</div>`).join('');
-  for(let i=0;i<sd;i++)g+='<div class="cal-day empty"></div>';
+  // 曜日ヘッダー（別グリッド）
+  const wdaysEl = document.getElementById('cal-wdays');
+  if(wdaysEl) wdaysEl.innerHTML = ['日','月','火','水','木','金','土'].map(w=>`<div class="cal-wday">${w}</div>`).join('');
+
+  // 日付グリッド（固定行高）
+  let g='';
+  for(let i=0;i<sd;i++) g+='<div class="cal-day empty"></div>';
   for(let day=1;day<=dim;day++){
     const ds=`${calState.y}-${String(calState.m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const isFed=fedSet.has(ds);
     const isToday=ds===today;
-    g+=`<div class="cal-day ${isToday?'today':''} ${isFed?'fed':''}" onclick="showDayDetail('${ds}')" ><span>${day}</span>${isFed?'<div class="fed-dot"></div>':''}</div>`;
+    g+=`<div class="cal-day ${isToday?'today':''} ${isFed?'fed':''}" onclick="showDayDetail('${ds}')"><span>${day}</span>${isFed?'<div class="fed-dot"></div>':''}</div>`;
   }
   document.getElementById('cal-grid').innerHTML=g;
   const recent=[...allLogs].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,10);
