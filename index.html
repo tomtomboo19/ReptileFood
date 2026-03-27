@@ -94,10 +94,12 @@ function startRealtimeSync(){
 function setSyncStatus(st){
   const el = document.getElementById('sync-status');
   const mob = document.getElementById('sync-status-mob');
+  const dot = document.getElementById('topbar-sync-dot');
   const map = { ok:['●','var(--jade)','同期済み'], saving:['◌','var(--amb)','保存中...'], error:['●','var(--red)','オフライン'], offline:['○','var(--t3)','オフライン'] };
   const [ic,cl,lb] = map[st]||map.offline;
   if(el) el.innerHTML = `<span style="color:${cl};font-size:10px">${ic}</span><span style="font-size:10px;color:var(--t3)">${lb}</span>`;
   if(mob) mob.innerHTML = `<span style="font-size:16px;color:${cl}">${ic}</span><span style="font-size:8px;color:var(--t3)">${lb}</span>`;
+  if(dot){ dot.className='topbar-sync'; if(st==='ok')dot.classList.add('ok'); else if(st==='saving')dot.classList.add('saving'); else if(st==='error')dot.classList.add('error'); }
 }
 
 // ── セットアップ ──
@@ -283,26 +285,76 @@ input, textarea, select { font-family: var(--font); }
 /* topbar */
 .topbar {
   position: sticky; top: 0; z-index: 50;
-  height: var(--top-h);
-  padding: 0 20px;
-  padding-top: env(safe-area-inset-top);
-  background: rgba(7,13,9,.96);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-bottom: .5px solid var(--b1);
-  display: flex; align-items: center; gap: 12px;
   width: 100%;
+  padding: 0 18px 0;
+  padding-top: env(safe-area-inset-top);
+  background: rgba(7,11,8,.97);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-bottom: .5px solid var(--b1);
+  display: flex; align-items: center;
+  min-height: var(--top-h);
 }
-.topbar-title { font-size: 20px; font-weight: 800; color: var(--txt); letter-spacing: -.5px; flex: 1; }
-.tb-add {
-  height: 36px; padding: 0 14px;
+/* モバイル専用ヘッダーレイアウト */
+.topbar-inner {
+  display: flex; align-items: center;
+  width: 100%; gap: 10px; height: var(--top-h);
+}
+.topbar-logo {
+  display: flex; align-items: center; gap: 9px; flex: 1;
+}
+.topbar-logo-icon {
+  width: 32px; height: 32px;
   background: var(--j4); border: .5px solid var(--j3);
-  color: var(--jade); font-size: 13px; font-weight: 700;
-  border-radius: 10px; cursor: pointer;
-  display: flex; align-items: center; gap: 5px;
-  -webkit-tap-highlight-color: transparent;
-  display: none; /* hidden on mobile, shown on desktop */
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
 }
+.topbar-logo-text {
+  display: flex; flex-direction: column; gap: 1px;
+}
+.topbar-title {
+  font-size: 17px; font-weight: 800; color: var(--txt);
+  letter-spacing: -.5px; line-height: 1;
+}
+.topbar-subtitle {
+  font-size: 10px; color: var(--t3); font-family: var(--mono);
+  letter-spacing: .2px; line-height: 1;
+}
+/* ページタイトルモード（詳細・設定など） */
+.topbar-page-title {
+  font-size: 17px; font-weight: 800; color: var(--txt); letter-spacing: -.5px; flex: 1;
+  display: none;
+}
+/* 右側アクション */
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.topbar-sync {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--t3); flex-shrink: 0;
+  transition: background .3s;
+}
+.topbar-sync.ok { background: var(--jade); }
+.topbar-sync.saving { background: var(--amb); animation: pulse .8s ease infinite; }
+.topbar-sync.error { background: var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.tb-add {
+  height: 34px; padding: 0 13px;
+  background: var(--j4); border: .5px solid var(--j3);
+  color: var(--jade); font-size: 12px; font-weight: 700;
+  border-radius: 10px; cursor: pointer;
+  display: none; align-items: center; gap: 5px;
+  -webkit-tap-highlight-color: transparent;
+  letter-spacing: -.1px;
+}
+.tb-icon-btn {
+  width: 34px; height: 34px;
+  background: var(--bg3); border: .5px solid var(--b2);
+  border-radius: 10px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+.tb-icon-btn svg { width: 16px; height: 16px; stroke: var(--t2); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* content */
 .content {
@@ -669,8 +721,10 @@ input, textarea, select { font-family: var(--font); }
   /* main shifts right by sidebar width */
   #app-root { display: flex !important; flex-direction: row; }
   .main-wrap { margin-left: 240px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; width: calc(100% - 240px); }
-  .topbar { padding: 0 24px; }
-  .tb-add { display: flex; }
+  .topbar { padding: 0 24px; height: var(--top-h); }
+  .topbar-logo { display: none !important; }
+  .topbar-page-title { display: block !important; font-size: 18px; }
+  .tb-add { display: flex !important; }
   .content { padding: 24px; padding-bottom: 24px; }
   .toast { bottom: 24px; left: auto; right: 24px; width: auto; min-width: 200px; text-align: left; border-radius: var(--r); }
   .summary-grid { grid-template-columns: repeat(4, 1fr); }
@@ -794,11 +848,27 @@ input, textarea, select { font-family: var(--font); }
   <!-- MAIN WRAP -->
   <div class="main-wrap">
     <header class="topbar">
-      <div class="topbar-title" id="tb-title">ホーム</div>
-      <button class="tb-add" id="tb-action" onclick="openAddReptile()">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        爬虫類を追加
-      </button>
+      <div class="topbar-inner">
+        <!-- ホーム時：ロゴ表示 -->
+        <div class="topbar-logo" id="topbar-logo">
+          <div class="topbar-logo-icon">🦎</div>
+          <div class="topbar-logo-text">
+            <div class="topbar-title">ReptiFeed</div>
+            <div class="topbar-subtitle" id="topbar-subtitle">— 匹管理中</div>
+          </div>
+        </div>
+        <!-- 詳細・設定などのページタイトル -->
+        <div class="topbar-page-title" id="tb-title"></div>
+
+        <div class="topbar-actions">
+          <div class="topbar-sync" id="topbar-sync-dot"></div>
+          <!-- デスクトップ用追加ボタン -->
+          <button class="tb-add" id="tb-action" onclick="openAddReptile()">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            爬虫類を追加
+          </button>
+        </div>
+      </div>
     </header>
 
     <div class="content">
@@ -1082,8 +1152,13 @@ function navigate(p){
   const navEl=document.getElementById('nav-'+p);if(navEl)navEl.classList.add('active');
   const bnEl=document.getElementById('bn-'+p);if(bnEl)bnEl.classList.add('active');
   const titles={home:'ホーム',calendar:'カレンダー',stats:'統計',settings:'設定',detail:repId?load().reptiles.find(r=>r.id===repId)?.name||'詳細':'詳細'};
-  document.getElementById('tb-title').textContent=titles[p]||p;
-  document.getElementById('tb-action').style.display=p==='home'?'flex':'none';
+  // ホームはロゴ表示、それ以外はページタイトル
+  const isHome = p==='home';
+  const logoEl = document.getElementById('topbar-logo');
+  const titleEl = document.getElementById('tb-title');
+  if(logoEl) logoEl.style.display = isHome ? 'flex' : 'none';
+  if(titleEl){ titleEl.style.display = isHome ? 'none' : 'block'; titleEl.textContent = titles[p]||p; }
+  document.getElementById('tb-action').style.display = isHome ? 'none' : 'none'; // desktop only via CSS
   // mobile FAB: show on detail page only
 
   if(p==='home')renderHome();else if(p==='calendar')renderCalendar();else if(p==='stats')renderStats();else if(p==='settings')renderSettings();else if(p==='detail')renderDetail();
@@ -1096,6 +1171,8 @@ window.refreshAll=function(){if(page==='home')renderHome();else if(page==='calen
 function renderSidebar(){
   const d=load();
   document.getElementById('sb-count').textContent=d.reptiles.length+'匹管理中';
+  const sub=document.getElementById('topbar-subtitle');
+  if(sub) sub.textContent=d.reptiles.length+'匹管理中';
   document.getElementById('sb-reptiles').innerHTML=d.reptiles.map(r=>`
     <div class="rni ${repId===r.id&&page==='detail'?'active':''}" onclick="openDetail('${r.id}')">
       <div class="rni-emo">${r.photoData?`<img src="${r.photoData}">`:`<span>${r.emoji}</span>`}</div>
