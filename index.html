@@ -394,118 +394,205 @@ body{font-family:var(--font);background:var(--bg);color:var(--txt);min-height:10
 /* ── BOTTOM NAV (mobile only) ── */
 .bottom-nav{
   display:none;position:fixed;bottom:0;left:0;right:0;
-  background:rgba(10,18,12,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  background:rgba(7,11,8,.96);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
   border-top:.5px solid var(--b1);z-index:100;
   padding-bottom:env(safe-area-inset-bottom);
 }
-.bottom-nav-inner{display:flex;align-items:center}
+.bottom-nav-inner{display:flex;align-items:center;padding:6px 4px 2px}
 .bn-item{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;padding:10px 0;cursor:pointer;border:none;background:transparent;
-  font-family:var(--font);transition:all .12s;-webkit-tap-highlight-color:transparent;
-  min-height:56px;
+  gap:3px;padding:6px 0 8px;cursor:pointer;border:none;background:transparent;
+  font-family:var(--font);transition:all .15s;-webkit-tap-highlight-color:transparent;
+  min-height:52px;position:relative;
 }
-.bn-icon{font-size:20px;transition:transform .15s}
-.bn-label{font-size:9px;font-weight:600;color:var(--txt3);letter-spacing:.3px;transition:color .12s}
+.bn-icon{font-size:22px;line-height:1;transition:transform .2s cubic-bezier(.34,1.56,.64,1)}
+.bn-label{font-size:9px;font-weight:600;color:var(--txt3);letter-spacing:.3px;transition:color .15s}
 .bn-item.active .bn-label{color:var(--jade)}
-.bn-item.active .bn-icon{transform:scale(1.1)}
-.bn-add{
-  width:52px;height:52px;background:var(--jade2);border-radius:16px;
-  display:flex;align-items:center;justify-content:center;font-size:24px;
-  box-shadow:0 4px 16px rgba(0,158,95,.4);transition:all .15s;
-  border:none;cursor:pointer;-webkit-tap-highlight-color:transparent;
-  color:#fff;font-weight:300;
+.bn-item.active .bn-icon{transform:scale(1.18) translateY(-1px)}
+.bn-item.active::before{
+  content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:28px;height:2px;background:var(--jade);border-radius:0 0 2px 2px;
 }
-.bn-add:active{transform:scale(.94);background:var(--jade)}
-
-/* ── FAB (mobile detail page) ── */
+.bn-add-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:4px 0 8px}
+.bn-add{
+  width:54px;height:54px;background:var(--jade2);border-radius:18px;
+  display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:300;
+  box-shadow:0 6px 24px rgba(0,158,95,.5);transition:all .18s cubic-bezier(.34,1.56,.64,1);
+  border:none;cursor:pointer;-webkit-tap-highlight-color:transparent;color:#fff;
+  margin-top:-10px;
+}
+.bn-add:active{transform:scale(.9);box-shadow:0 2px 8px rgba(0,158,95,.3)}
 .mob-fab{
-  display:none;position:fixed;bottom:calc(72px + env(safe-area-inset-bottom));right:16px;
-  width:52px;height:52px;background:var(--jade2);border-radius:16px;
-  border:none;cursor:pointer;z-index:90;font-size:22px;color:#fff;
-  box-shadow:0 4px 20px rgba(0,158,95,.4);transition:all .15s;
+  display:none;position:fixed;bottom:calc(76px + env(safe-area-inset-bottom));right:16px;
+  width:54px;height:54px;background:var(--jade2);border-radius:18px;
+  border:none;cursor:pointer;z-index:90;font-size:24px;color:#fff;
+  box-shadow:0 6px 24px rgba(0,158,95,.5);transition:all .18s cubic-bezier(.34,1.56,.64,1);
   align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;
 }
-.mob-fab:active{transform:scale(.94)}
+.mob-fab:active{transform:scale(.9)}
 
 @media(max-width:768px){
-  /* hide desktop elements */
-  .sidebar{display:none}
-  .sidebar-overlay{display:none!important}
-  .hamburger{display:none!important}
+  .sidebar{display:none}.sidebar-overlay{display:none!important}.hamburger{display:none!important}
   .main{margin-left:0}
-  .topbar{padding:0 16px;height:54px}
-  .topbar-title{font-size:16px}
+
+  /* topbar */
+  .topbar{
+    padding:0 18px;
+    height:60px;
+    background:rgba(7,11,8,.92);
+    border-bottom:.5px solid var(--b1);
+  }
+  .topbar-title{font-size:18px;font-weight:700;letter-spacing:-.4px}
   .tb-btn{display:none}
 
   /* show mobile elements */
   .bottom-nav{display:block}
   .mob-fab{display:flex}
 
-  /* content padding - account for bottom nav */
+  /* full-height content */
   .content{
-    padding:14px 14px calc(72px + env(safe-area-inset-bottom) + 14px);
+    padding:16px 14px;
+    padding-bottom:calc(80px + env(safe-area-inset-bottom) + 16px);
+    min-height:calc(100vh - 60px);
   }
 
-  /* cards */
-  .card{padding:14px 14px}
-  .g2{grid-template-columns:1fr}
-  .g3,.g4{grid-template-columns:1fr 1fr}
+  /* ── HOME PAGE MOBILE ── */
+  /* alert banner */
+  .alert-banner{
+    border-radius:18px;padding:14px 16px;margin-bottom:16px;
+    background:linear-gradient(135deg,#003d26 0%,#00280f 100%);
+  }
+  .alert-icon{width:40px;height:40px;border-radius:12px}
+  .alert-title{font-size:14px}
+  .alert-sub{font-size:11px}
 
-  /* stat cards - 2x2 on mobile */
-  #summary{grid-template-columns:1fr 1fr!important}
+  /* stat cards - 2 col grid */
+  #summary{
+    display:grid!important;grid-template-columns:1fr 1fr!important;
+    gap:10px!important;margin-bottom:16px!important;
+  }
+  .stat-card{
+    border-radius:16px;padding:16px 14px;
+    background:var(--bg2);
+    position:relative;overflow:hidden;
+  }
+  .stat-card::after{
+    content:'';position:absolute;bottom:-12px;right:-8px;
+    width:52px;height:52px;border-radius:50%;
+    background:currentColor;opacity:.04;
+  }
+  .stat-val{font-size:32px;font-weight:800;letter-spacing:-1.5px;line-height:1}
+  .stat-lbl{font-size:10px;margin-top:6px;letter-spacing:.4px}
 
-  /* reptile rows - bigger touch targets */
-  .rrow{padding:13px 0;min-height:64px}
+  /* reptile list card */
+  .card{border-radius:18px;padding:16px}
+
+  /* reptile rows */
+  .rrow{
+    display:flex;align-items:center;gap:14px;
+    padding:13px 0;border-bottom:.5px solid var(--b1);
+    min-height:72px;cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+    transition:opacity .12s;
+  }
+  .rrow:active{opacity:.7}
+  .rrow:last-child{border-bottom:none;padding-bottom:2px}
   .rrow:hover{margin:0;padding:13px 0;background:transparent;border-radius:0}
-  .rrow-emo{width:50px;height:50px;border-radius:13px;font-size:24px}
-  .rrow-name{font-size:15px}
+  .rrow-emo{
+    width:54px;height:54px;border-radius:14px;
+    font-size:26px;flex-shrink:0;
+    background:var(--bg3);border:.5px solid var(--b1);
+  }
+  .rrow-name{font-size:16px;font-weight:700;letter-spacing:-.3px}
+  .rrow-sp{font-size:11px;color:var(--txt3);margin-top:3px}
 
-  /* detail hero */
-  .detail-hero{flex-wrap:wrap;gap:14px;padding:16px}
-  .detail-photo{width:72px;height:72px}
-  .detail-name{font-size:22px}
+  /* pill badges */
+  .pill{font-size:10px;padding:4px 11px;border-radius:20px;font-weight:700;letter-spacing:.2px}
+  .days-ago{font-size:11px;margin-top:5px;font-family:var(--mono)}
+
+  /* detail page */
+  .detail-hero{
+    border-radius:18px;padding:18px;gap:14px;margin-bottom:16px;
+    flex-wrap:nowrap;align-items:flex-start;
+  }
+  .detail-photo{width:76px;height:76px;border-radius:20px;font-size:40px;flex-shrink:0}
+  .detail-name{font-size:24px;font-weight:800;letter-spacing:-.6px}
+  .detail-sp{font-size:12px;margin-top:4px}
+  .detail-tags{margin-top:10px;gap:6px}
+  .tag{font-size:10px;padding:4px 10px;border-radius:8px}
+
+  /* stat mini cards in detail */
+  .stat-card[style*="text-align:center"]{
+    border-radius:14px;
+  }
+
+  /* tabs */
+  .tabs{
+    overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+    border-radius:12px 12px 0 0;margin-bottom:14px;
+    background:var(--bg2);padding:0 4px;
+    border:.5px solid var(--b1);border-bottom:none;
+  }
+  .tabs::-webkit-scrollbar{display:none}
+  .tab-btn{padding:12px 20px;white-space:nowrap;font-size:13px;font-weight:600}
 
   /* log items */
-  .log-item{padding:11px 12px}
-  .log-date{font-size:12px;min-width:72px}
-  .del-btn{width:36px;height:36px}
-
-  /* tabs - scrollable */
-  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-  .tabs::-webkit-scrollbar{display:none}
-  .tab-btn{padding:10px 16px;white-space:nowrap;font-size:13px}
-
-  /* modal */
-  .modal-sheet{max-width:100%;padding:16px 18px calc(32px + env(safe-area-inset-bottom))}
-  .form-row{grid-template-columns:1fr 1fr}
-  .form-input,.form-select{font-size:16px} /* prevent zoom on iOS */
-
-  /* chips - scrollable */
-  .chip-group{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:none}
-  .chip-group::-webkit-scrollbar{display:none}
-  .fchip{flex-shrink:0;padding:7px 14px;font-size:12px}
+  .log-item{padding:12px 13px;border-radius:14px;gap:12px}
+  .log-date{font-size:12px;min-width:70px}
+  .log-food{font-size:11px}
+  .log-amt{font-size:13px;font-weight:700}
+  .del-btn{width:36px;height:36px;border-radius:10px}
 
   /* calendar */
-  .cal-day{font-size:13px}
-  .filter-chip{padding:6px 14px;font-size:12px;flex-shrink:0}
+  .cal-hdr{margin-bottom:14px}
+  .cal-title{font-size:18px;font-weight:800}
+  .cal-day{font-size:14px}
+  .filter-chip{padding:7px 14px;font-size:12px;flex-shrink:0;border-radius:20px}
 
-  /* toast - above bottom nav */
-  .toast{bottom:calc(80px + env(safe-area-inset-bottom));right:14px;left:14px;right:14px;border-radius:var(--r)}
+  /* modal */
+  .modal-sheet{
+    max-width:100%;border-radius:28px 28px 0 0;
+    padding:16px 20px calc(36px + env(safe-area-inset-bottom));
+  }
+  .modal-handle{width:36px;height:4px;margin-bottom:20px;background:var(--b3)}
+  .modal-title{font-size:18px;font-weight:800;letter-spacing:-.4px;margin-bottom:18px}
+  .form-input,.form-select,.form-textarea{
+    font-size:16px;border-radius:12px;padding:12px 14px;
+    background:var(--bg3);
+  }
+  .form-label{font-size:10px;margin-bottom:7px}
+  .form-row{grid-template-columns:1fr 1fr;gap:10px}
+  .chip-group{
+    flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    padding-bottom:4px;scrollbar-width:none;gap:7px;
+  }
+  .chip-group::-webkit-scrollbar{display:none}
+  .fchip{flex-shrink:0;padding:8px 16px;font-size:12px;border-radius:10px}
+  .btn-submit{padding:15px;border-radius:14px;font-size:15px;font-weight:800;letter-spacing:.1px}
+  .btn-cancel{padding:10px 20px;border-radius:12px;font-size:13px}
 
-  /* settings grid */
-  .g2{grid-template-columns:1fr}
-
-  /* back button */
-  .back-btn{font-size:14px;padding:4px 0;min-height:36px}
+  /* back btn */
+  .back-btn{font-size:14px;padding:6px 0;min-height:40px;font-weight:700}
 
   /* emoji grid */
-  .emoji-btn{width:48px;height:48px}
-}
+  .emoji-btn{width:52px;height:52px;border-radius:14px;font-size:28px}
 
+  /* empty state */
+  .empty{padding:60px 20px}
+
+  /* toast */
+  .toast{
+    bottom:calc(82px + env(safe-area-inset-bottom));
+    left:14px;right:14px;border-radius:16px;
+    font-size:13px;font-weight:600;
+    justify-content:center;
+  }
+  .g2{grid-template-columns:1fr}
+}
 @media(max-width:380px){
   .g3,.g4{grid-template-columns:1fr}
   #summary{grid-template-columns:1fr 1fr!important}
+  .rrow-emo{width:48px;height:48px}
 }
 </style>
 </head>
@@ -692,15 +779,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--txt);min-height:10
       <span class="bn-icon">📅</span>
       <span class="bn-label">カレンダー</span>
     </button>
-    <button class="bn-add" onclick="openAddReptile()">＋</button>
+    <div class="bn-add-wrap">
+      <button class="bn-add" onclick="openAddReptile()">＋</button>
+    </div>
     <button class="bn-item" id="bn-settings" onclick="navigate('settings')">
       <span class="bn-icon">⚙</span>
       <span class="bn-label">設定</span>
     </button>
     <div class="bn-item" style="cursor:default">
       <div id="sync-status-mob" style="display:flex;flex-direction:column;align-items:center;gap:2px">
-        <span style="font-size:14px">◌</span>
-        <span style="font-size:8px;color:var(--txt3)">同期中</span>
+        <span style="font-size:16px;color:var(--txt3)">◌</span>
+        <span style="font-size:8px;color:var(--txt3);letter-spacing:.2px">同期中</span>
       </div>
     </div>
   </div>
@@ -863,20 +952,52 @@ function renderHome(){
   const d=load();
   const ov=d.reptiles.filter(r=>status(r)==='overdue'),sn=d.reptiles.filter(r=>status(r)==='soon'),ok=d.reptiles.filter(r=>['ok','unknown'].includes(status(r)));
   const aa=document.getElementById('alert-area');
-  if(ov.length){const r=ov[0];aa.innerHTML=`<div class="alert-banner" onclick="openDetail('${r.id}')"><div class="alert-icon">${r.emoji}</div><div><div class="alert-title">${r.name}の給餌タイミングです</div><div class="alert-sub">前回から ${daysSince(r)}日 が経過しています</div></div><span style="margin-left:auto;color:var(--jade2);font-size:18px">›</span></div>`}
-  else aa.innerHTML='';
-  document.getElementById('summary').innerHTML=[{n:ov.length,l:'要給餌',c:'var(--red)'},{n:sn.length,l:'まもなく',c:'var(--amb)'},{n:ok.length,l:'問題なし',c:'var(--jade)'},{n:d.reptiles.length,l:'管理中',c:'var(--txt2)'}]
-    .map(x=>`<div class="stat-card"><div class="stat-val" style="color:${x.c}">${x.n}</div><div class="stat-lbl">${x.l}</div></div>`).join('');
+  if(ov.length){
+    const r=ov[0];
+    aa.innerHTML=`<div class="alert-banner" onclick="openDetail('${r.id}')">
+      <div class="alert-icon">${r.emoji}</div>
+      <div style="flex:1">
+        <div class="alert-title">${r.name}の給餌タイミングです</div>
+        <div class="alert-sub">前回から ${daysSince(r)}日 が経過しています</div>
+      </div>
+      <span style="color:var(--jade2);font-size:20px;flex-shrink:0">›</span>
+    </div>`;
+  } else aa.innerHTML='';
+
+  // Summary cards with accent dots
+  document.getElementById('summary').innerHTML=[
+    {n:ov.length,l:'要給餌',c:'var(--red)',dot:'#ff5252'},
+    {n:sn.length,l:'まもなく',c:'var(--amb)',dot:'#ffab3d'},
+    {n:ok.length,l:'問題なし',c:'var(--jade)',dot:'#00c97b'},
+    {n:d.reptiles.length,l:'管理中',c:'var(--txt2)',dot:'#6fa882'}
+  ].map(x=>`<div class="stat-card" style="color:${x.dot}">
+    <div class="stat-val" style="color:${x.c}">${x.n}</div>
+    <div class="stat-lbl">${x.l}</div>
+  </div>`).join('');
+
   const sorted=[...d.reptiles].sort((a,b)=>['overdue','soon','unknown','ok'].indexOf(status(a))-['overdue','soon','unknown','ok'].indexOf(status(b)));
   const el=document.getElementById('rlist');
-  if(!sorted.length){el.innerHTML=`<div class="empty"><div class="empty-icon">🦎</div><div class="empty-title">爬虫類を追加しましょう</div><div class="empty-sub">上の「爬虫類を追加」から登録できます</div></div>`;return}
+  if(!sorted.length){
+    el.innerHTML=`<div class="empty"><div class="empty-icon">🦎</div><div class="empty-title">爬虫類を追加しましょう</div><div class="empty-sub">下の ＋ ボタンから登録できます</div></div>`;
+    return;
+  }
   el.innerHTML=sorted.map(r=>{
     const s=status(r),ds=daysSince(r),w=latestW(r);
-    return`<div class="rrow" onclick="openDetail('${r.id}')">
-      <div class="rrow-emo">${r.photoData?`<img src="${r.photoData}">`:r.emoji}</div>
-      <div style="flex:1"><div class="rrow-name">${r.name}</div><div class="rrow-sp">${r.species}${r.gender!=='不明'?' · '+r.gender:''}</div>${w?`<div style="font-size:10px;color:var(--txt3);margin-top:2px">⚖ ${fmtW(w.grams)}</div>`:''}</div>
-      <div style="text-align:right"><span class="pill ${pillClass(s)}">${pillLabel(s)}</span><div class="days-ago">${ds!==null?fmtDays(ds):'未記録'}</div></div>
-    </div>`}).join('');
+    const accentColor={overdue:'var(--red)',soon:'var(--amb)',ok:'var(--jade)',unknown:'var(--txt3)'}[s];
+    return`<div class="rrow" onclick="openDetail('${r.id}')" style="position:relative">
+      <div style="position:absolute;left:0;top:16px;bottom:16px;width:3px;border-radius:2px;background:${accentColor};opacity:.8"></div>
+      <div class="rrow-emo" style="margin-left:10px">${r.photoData?`<img src="${r.photoData}" style="width:100%;height:100%;object-fit:cover;border-radius:14px">`:r.emoji}</div>
+      <div style="flex:1;min-width:0">
+        <div class="rrow-name">${r.name}</div>
+        <div class="rrow-sp">${r.species}${r.gender!=='不明'?' · '+r.gender:''}</div>
+        ${w?`<div style="font-size:10px;color:var(--txt3);margin-top:3px;display:flex;align-items:center;gap:3px"><span>⚖</span><span style="font-family:var(--mono)">${fmtW(w.grams)}</span></div>`:''}
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <span class="pill ${pillClass(s)}">${pillLabel(s)}</span>
+        <div class="days-ago">${ds!==null?fmtDays(ds):'未記録'}</div>
+      </div>
+    </div>`;
+  }).join('');
   renderSidebar();
 }
 
@@ -895,10 +1016,10 @@ function renderDetail(){
     <div style="flex:1">
       <div class="detail-name">${r.name}</div><div class="detail-sp">${r.species}</div>
       <div class="detail-tags">${r.gender!=='不明'?`<span class="tag">${r.gender}</span>`:''} ${a?`<span class="tag">${a}</span>`:''} <span class="tag" style="background:${stB};color:${stC}">${pillLabel(s)}</span></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-        <button class="tb-btn" onclick="openFeedModal()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 給餌を記録</button>
-        <button class="tb-btn" onclick="openWeightModal()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 体重を記録</button>
-        <button class="btn-cancel" onclick="openEditReptile('${r.id}')">編集</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        <button onclick="openFeedModal()" style="flex:1;min-width:120px;height:42px;border-radius:12px;border:.5px solid var(--jade3);background:var(--jade4);color:var(--jade);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:6px;-webkit-tap-highlight-color:transparent;transition:all .12s">🍽 給餌を記録</button>
+        <button onclick="openWeightModal()" style="flex:1;min-width:100px;height:42px;border-radius:12px;border:.5px solid var(--b2);background:var(--bg3);color:var(--txt2);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:6px;-webkit-tap-highlight-color:transparent;transition:all .12s">⚖ 体重</button>
+        <button class="btn-cancel" onclick="openEditReptile('${r.id}')" style="height:42px;border-radius:12px">編集</button>
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-self:flex-start">
