@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#070d09">
+<title>ReptiFeed 🦎</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+// ── Firebase初期化 ──
+let db = null, unsubscribe = null;
+const FBCFG_KEY = 'reptifeed_fbconfig';
+const UID_KEY   = 'reptifeed_uid';
+const CACHE_KEY = 'reptifeed_cache';
+
+function uid(){ return Math.random().toString(36).slice(2)+Date.now().toString(36) }
+
+function getSyncId(){
+  let id = localStorage.getItem(UID_KEY);
+  if(!id){ id = uid(); localStorage.setItem(UID_KEY, id); }
+  return id;
+}
+
+async function initFirebase(cfg){
+  try {
+    const app = initializeApp(cfg, 'reptifeed');
+    db = getFirestore(app);
+    // 接続テスト
+    const ref = doc(db, 'users', getSyncId());
+    await getDoc(ref);
+    return true;
+  } catch(e) {
+    db = null;
+    return false;
+  }
+}
+
+// ── Cloud Save/Load ──
+async function cloudSave(data){
+  if(!db) return;
+  setSyncStatus('saving');
+  try {
+    // 写真データはFirestoreに入らないので別に保管（localStorageのまま）
+    const photos = {};
+    data.reptiles.forEach(r=>{ if(r.photoData){ photos[r.id]=r.photoData; r.photoData=null; }});
+    const savedPhotos = JSON.parse(localStorage.getItem('reptifeed_photos')||'{}');
+    Object.assign(savedPhotos, photos);
+    localStorage.setItem('reptifeed_photos', JSON.stringify(savedPhotos));
+
+    await setDoc(doc(db,'users',getSyncId()), { reptiles: data.reptiles, updatedAt: Date.now() });
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    setSyncStatus('ok');
+  } catch(e) {
+    setSyncStatus('error');
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+  }
+}
+
+function attachPhotos(data){
+  const photos = JSON.parse(localStorage.getItem('reptifeed_photos')||'{}');
+  data.reptiles.forEach(r=>{ r.photoData = photos[r.id]||null; });
+  return data;
+}
+
+function startRealtimeSync(){
+  if(!db) return;
+  if(unsubscribe) unsubscribe();
+  unsubscribe = onSnapshot(doc(db,'users',getSyncId()), snap=>{
+    if(!snap.exists()) return;
+    const remote = snap.data();
+    const data = attachPhotos({ reptiles: remote.reptiles||[] });
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    window._appData = data;
+    setSyncStatus('ok');
+    if(window._appReady) window.refreshAll();
+  });
+}
+
+function setSyncStatus(st){
+  const el = document.getElementById('sync-status');
+  if(!el) return;
+  const map = { ok:['●','var(--jade)','同期済み'], saving:['◌','var(--amb)','保存中...'], error:['●','var(--red)','オフライン'], offline:['○','var(--txt3)','オフライン'] };
+  const [ic,cl,lb] = map[st]||map.offline;
+  el.innerHTML = `<span style="color:${cl};font-size:10px">${ic}</span><span style="font-size:10px;color:var(--txt3)">${lb}</span>`;
+}
+
+// ── セットアップ ──
+async function tryAutoConnect(){
+  const raw = localStorage.getItem(FBCFG_KEY);
+  if(!raw) return false;
+  try {
+    const cfg = JSON.parse(raw);
+    const ok = await initFirebase(cfg);
+    return ok;
+  } catch { return false; }
+}
+
+async function connectFirebase(){
+  const raw = document.getElementById('fb-config-input').value.trim();
+  let cfg;
+  try {
+    // "const firebaseConfig = {...}" 形式も "apiKey: ..." 形式も対応
+    const match = raw.match(/\{[\s\S]+\}/);
+    if(!match) throw new Error('形式が正しくありません');
+    cfg = eval('('+match[0]+')');
+    if(!cfg.apiKey) throw new Error('apiKeyが見つかりません');
+  } catch(e) {
+    document.getElementById('fb-error').textContent = '設定のコピーが正しくありません: '+e.message;
+    return;
+  }
+  document.getElementById('fb-connect-btn').textContent = '接続中...';
+  document.getElementById('fb-connect-btn').disabled = true;
+  const ok = await initFirebase(cfg);
+  if(ok){
+    localStorage.setItem(FBCFG_KEY, JSON.stringify(cfg));
+    document.getElementById('fb-error').textContent = '';
+    hideSetup();
+    startApp();
+  } else {
+    document.getElementById('fb-error').textContent = '接続できませんでした。設定を確認してください。';
+    document.getElementById('fb-connect-btn').textContent = '接続する';
+    document.getElementById('fb-connect-btn').disabled = false;
+  }
+}
+
+function hideSetup(){ document.getElementById('setup-screen').style.display='none'; document.getElementById('app-root').style.display='flex'; }
+function showSetup(){ document.getElementById('setup-screen').style.display='flex'; document.getElementById('app-root').style.display='none'; }
+
+async function startApp(){
+  // Firestoreからデータ取得 or キャッシュ
+  let data;
+  try {
+    const snap = await getDoc(doc(db,'users',getSyncId()));
+    if(snap.exists()){
+      data = attachPhotos({ reptiles: snap.data().reptiles||[] });
+    } else {
+      data = attachPhotos(getCache());
+      if(!data.reptiles.length) data = makeSampleData();
+      await cloudSave(data);
+    }
+  } catch {
+    data = attachPhotos(getCache());
+    if(!data.reptiles.length) data = makeSampleData();
+  }
+  window._appData = data;
+  localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+  startRealtimeSync();
+  window._appReady = true;
+  window.refreshAll();
+  document.getElementById('sync-code-display').textContent = getSyncId().slice(0,8).toUpperCase();
+}
+
+function getCache(){ try{ return JSON.parse(localStorage.getItem(CACHE_KEY))||{reptiles:[]} }catch{ return{reptiles:[]} } }
+
+// ── グローバルに公開 ──
+window.DB = {
+  load(){ return window._appData || getCache() },
+  async save(d){
+    window._appData = d;
+    localStorage.setItem(CACHE_KEY, JSON.stringify(d));
+    await cloudSave(d);
+  }
+};
+
+window.connectFirebase = connectFirebase;
+window.resetFirebase = function(){
+  localStorage.removeItem(FBCFG_KEY);
+  location.reload();
+};
+
+// ── アプリ起動 ──
+(async ()=>{
+  const ok = await tryAutoConnect();
+  if(ok){
+    hideSetup();
+    await startApp();
+  } else {
+    showSetup();
+  }
+})();
+</script>
+<style>
+:root{
+  --bg:#070d09;--bg2:#0c1610;--bg3:#101e14;--bg4:#162518;
+  --b1:#192b1e;--b2:#22392a;
+  --jade:#00c97b;--jade2:#009e5f;--jade3:#006640;--jade4:#003d26;
+  --txt:#dff0e8;--txt2:#6fa882;--txt3:#3d5e48;
+  --red:#ff5252;--redbg:#280808;--amb:#ffab3d;--ambbg:#241200;
+  --r:14px;--rs:10px;--rx:7px;
+  --font:'DM Sans',-apple-system,sans-serif;
+  --mono:'DM Mono',monospace;
+  --sidebar:240px;--header:60px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px}
+body{font-family:var(--font);background:var(--bg);color:var(--txt);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+
+/* ── SETUP SCREEN ── */
+#setup-screen{
+  position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;
+  justify-content:center;z-index:1000;padding:20px;
+}
+.setup-card{
+  background:var(--bg2);border:.5px solid var(--b2);border-radius:20px;
+  padding:32px 28px;width:100%;max-width:480px;
+}
+.setup-logo{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.setup-logo-icon{width:44px;height:44px;background:var(--jade4);border:.5px solid var(--jade3);border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.setup-logo-text{font-size:22px;font-weight:700;color:var(--txt);letter-spacing:-.5px}
+.setup-steps{display:flex;flex-direction:column;gap:16px;margin-bottom:24px}
+.step{display:flex;gap:12px;align-items:flex-start}
+.step-num{width:24px;height:24px;background:var(--jade4);border:.5px solid var(--jade3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--jade);flex-shrink:0;margin-top:1px}
+.step-body{flex:1}
+.step-title{font-size:13px;font-weight:600;color:var(--txt);margin-bottom:3px}
+.step-desc{font-size:11px;color:var(--txt3);line-height:1.6}
+.step-link{color:var(--jade);text-decoration:none;font-weight:600}
+.step-link:hover{text-decoration:underline}
+.setup-textarea{width:100%;background:var(--bg3);border:.5px solid var(--b2);border-radius:var(--rs);padding:12px;font-size:11px;color:var(--txt);font-family:var(--mono);resize:vertical;min-height:100px;outline:none;margin-bottom:10px}
+.setup-textarea:focus{border-color:var(--jade3)}
+.setup-error{font-size:11px;color:var(--red);margin-bottom:10px;min-height:16px}
+.setup-btn{width:100%;padding:13px;border-radius:12px;background:var(--jade2);color:#fff;font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:var(--font);transition:background .12s}
+.setup-btn:hover:not(:disabled){background:var(--jade)}
+.setup-btn:disabled{opacity:.5;cursor:not-allowed}
+.setup-note{font-size:10px;color:var(--txt3);text-align:center;margin-top:12px;line-height:1.6}
+
+/* ── APP ── */
+#app-root{display:none;min-height:100vh}
+.app{display:flex;min-height:100vh}
+.sidebar{width:var(--sidebar);background:var(--bg2);border-right:.5px solid var(--b1);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:transform .25s}
+.sidebar-logo{padding:18px 18px 12px;border-bottom:.5px solid var(--b1);display:flex;align-items:center;gap:10px}
+.logo-icon{width:34px;height:34px;background:var(--jade4);border:.5px solid var(--jade3);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+.logo-text{font-size:15px;font-weight:700;color:var(--txt);letter-spacing:-.4px}
+.logo-sub{font-size:9px;color:var(--txt3);margin-top:1px;font-family:var(--mono)}
+.nav{padding:10px 8px;flex:1;overflow-y:auto}
+.nav-label{font-size:9px;font-weight:700;color:var(--txt3);letter-spacing:.8px;text-transform:uppercase;padding:8px 10px 5px;font-family:var(--mono)}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--rs);cursor:pointer;transition:all .12s;font-size:13px;font-weight:500;color:var(--txt3);margin-bottom:2px;border:none;background:transparent;width:100%;text-align:left;font-family:var(--font)}
+.nav-item:hover{background:var(--bg3);color:var(--txt2)}
+.nav-item.active{background:var(--jade4);color:var(--jade);border:.5px solid var(--jade3)}
+.nav-item .icon{width:18px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.nav-sep{height:.5px;background:var(--b1);margin:6px 10px}
+.sidebar-footer{padding:12px 8px;border-top:.5px solid var(--b1)}
+.rni{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:var(--rx);cursor:pointer;transition:all .12s;margin-bottom:2px}
+.rni:hover{background:var(--bg3)}
+.rni.active{background:var(--bg4)}
+.rni-emo{width:24px;height:24px;background:var(--bg3);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;overflow:hidden}
+.rni-emo img{width:100%;height:100%;object-fit:cover}
+.rni-name{font-size:11px;font-weight:600;color:var(--txt)}
+.rni-sp{font-size:9px;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99}
+.sync-row{display:flex;align-items:center;gap:6px;padding:8px 12px 0}
+#sync-status{display:flex;align-items:center;gap:4px}
+
+.main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{height:var(--header);background:rgba(7,13,9,.93);backdrop-filter:blur(12px);border-bottom:.5px solid var(--b1);display:flex;align-items:center;padding:0 24px;gap:14px;position:sticky;top:0;z-index:50}
+.topbar-title{font-size:17px;font-weight:700;color:var(--txt);letter-spacing:-.4px;flex:1}
+.tb-btn{height:34px;padding:0 14px;border-radius:var(--rs);border:.5px solid var(--b2);background:var(--bg3);color:var(--jade);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .12s;font-family:var(--font)}
+.tb-btn:hover{background:var(--bg4);border-color:var(--jade3)}
+.tb-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+.hamburger{display:none;width:34px;height:34px;background:var(--bg3);border:.5px solid var(--b2);border-radius:var(--rs);align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.content{padding:24px;flex:1}
+.page{display:none;animation:fadeIn .18s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+
+.card{background:var(--bg2);border:.5px solid var(--b1);border-radius:var(--r);padding:18px 20px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat-card{background:var(--bg2);border:.5px solid var(--b1);border-radius:var(--r);padding:14px 16px}
+.stat-val{font-size:26px;font-weight:700;letter-spacing:-1px;font-family:var(--mono)}
+.stat-lbl{font-size:9px;font-weight:700;color:var(--txt3);letter-spacing:.5px;text-transform:uppercase;margin-top:4px}
+
+.alert-banner{background:var(--jade4);border:.5px solid var(--jade3);border-radius:var(--r);padding:13px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .12s;margin-bottom:18px}
+.alert-banner:hover{background:#004a2a}
+.alert-icon{width:36px;height:36px;background:var(--jade3);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.alert-title{font-size:13px;font-weight:700;color:var(--jade)}
+.alert-sub{font-size:11px;color:var(--jade2);margin-top:2px}
+
+.rrow{display:flex;align-items:center;gap:14px;padding:11px 0;border-bottom:.5px solid var(--b1);cursor:pointer;transition:all .12s}
+.rrow:last-child{border-bottom:none}
+.rrow:hover{background:var(--bg3);margin:0 -20px;padding:11px 20px;border-radius:var(--rs)}
+.rrow-emo{width:44px;height:44px;background:var(--bg3);border:.5px solid var(--b1);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0;overflow:hidden}
+.rrow-emo img{width:100%;height:100%;object-fit:cover}
+.rrow-name{font-size:14px;font-weight:600;color:var(--txt)}
+.rrow-sp{font-size:11px;color:var(--txt3);margin-top:2px}
+.pill{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.3px;padding:3px 9px;border-radius:20px;text-transform:uppercase}
+.pr{background:var(--redbg);color:var(--red)}.pa{background:var(--ambbg);color:var(--amb)}.pj{background:var(--jade4);color:var(--jade)}.pg{background:var(--bg3);color:var(--txt3)}
+.days-ago{font-size:10px;color:var(--txt3);margin-top:3px;font-family:var(--mono)}
+.sec-lbl{font-size:9px;font-weight:700;color:var(--txt3);letter-spacing:.9px;text-transform:uppercase;font-family:var(--mono)}
+
+.log-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--bg3);border:.5px solid var(--b1);border-radius:var(--rs);margin-bottom:6px}
+.log-ind{width:3px;height:26px;border-radius:2px;flex-shrink:0}
+.log-date{font-size:11px;font-weight:500;color:var(--txt2);font-family:var(--mono);min-width:80px}
+.log-food{font-size:10px;color:var(--txt3)}
+.log-amt{font-size:11px;font-weight:700;margin-top:2px}
+.del-btn{width:26px;height:26px;background:transparent;border:none;cursor:pointer;color:var(--txt3);border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .12s;flex-shrink:0}
+.del-btn:hover{background:var(--redbg);color:var(--red)}
+.del-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+
+.cal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.cal-nav{width:32px;height:32px;background:var(--bg3);border:.5px solid var(--b2);border-radius:var(--rs);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.cal-nav:hover{background:var(--bg4)}
+.cal-nav svg{width:13px;height:13px;stroke:var(--txt2);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.cal-title{font-size:16px;font-weight:700;color:var(--txt)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-wday{text-align:center;font-size:9px;font-weight:700;color:var(--txt3);padding:5px 0;font-family:var(--mono)}
+.cal-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:50%;cursor:pointer;transition:all .12s;font-size:12px;color:var(--txt2);position:relative}
+.cal-day:hover{background:var(--bg3)}
+.cal-day.today{background:var(--bg3);border:.5px solid var(--b2);color:var(--txt);font-weight:700}
+.cal-day.fed{background:var(--jade4);color:var(--jade);border:.5px solid var(--jade3);font-weight:600}
+.cal-day.fed::after{content:'';position:absolute;bottom:3px;width:4px;height:4px;border-radius:50%;background:var(--jade)}
+.cal-day.empty{cursor:default}
+.filter-chip{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;border:.5px solid var(--b2);background:var(--bg2);color:var(--txt3);cursor:pointer;transition:all .12s}
+.filter-chip:hover{background:var(--bg3)}
+.filter-chip.active{background:var(--jade4);color:var(--jade);border-color:var(--jade3)}
+.chart-wrap{position:relative;height:170px;margin:4px 0}
+
+.detail-hero{background:var(--bg2);border:.5px solid var(--b1);border-radius:var(--r);padding:18px;display:flex;align-items:flex-start;gap:18px;margin-bottom:18px;flex-wrap:wrap}
+.detail-photo{width:84px;height:84px;border-radius:18px;background:var(--bg3);border:.5px solid var(--b2);display:flex;align-items:center;justify-content:center;font-size:44px;overflow:hidden;flex-shrink:0;cursor:pointer;position:relative;transition:border-color .12s}
+.detail-photo:hover{border-color:var(--jade3)}
+.detail-photo img{width:100%;height:100%;object-fit:cover}
+.photo-ov{position:absolute;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;border-radius:18px;font-size:22px}
+.detail-photo:hover .photo-ov{opacity:1}
+.detail-name{font-size:26px;font-weight:700;color:var(--txt);letter-spacing:-.6px}
+.detail-sp{font-size:12px;color:var(--txt3);margin-top:3px}
+.detail-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+.tag{font-size:9px;font-weight:600;padding:3px 9px;border-radius:6px;background:var(--bg3);border:.5px solid var(--b2);color:var(--txt2)}
+.tabs{display:flex;border-bottom:.5px solid var(--b1);margin-bottom:18px;gap:2px}
+.tab-btn{padding:9px 17px;font-size:13px;font-weight:500;color:var(--txt3);border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;font-family:var(--font);margin-bottom:-1px}
+.tab-btn:hover{color:var(--txt2)}
+.tab-btn.active{color:var(--jade);border-bottom-color:var(--jade);font-weight:700}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-ov.open{opacity:1;pointer-events:all}
+.modal-sheet{background:var(--bg2);border-radius:20px 20px 0 0;border-top:.5px solid var(--b2);width:100%;max-width:540px;padding:18px 22px 40px;transform:translateY(20px);transition:transform .2s}
+.modal-ov.open .modal-sheet{transform:translateY(0)}
+.modal-handle{width:30px;height:3px;border-radius:2px;background:var(--b2);margin:0 auto 16px}
+.modal-title{font-size:16px;font-weight:700;color:var(--txt);letter-spacing:-.3px;margin-bottom:16px}
+.form-group{margin-bottom:13px}
+.form-label{font-size:9px;font-weight:700;color:var(--txt3);letter-spacing:.6px;text-transform:uppercase;display:block;margin-bottom:5px;font-family:var(--mono)}
+.form-input,.form-select,.form-textarea{width:100%;background:var(--bg3);border:.5px solid var(--b2);border-radius:var(--rs);padding:9px 12px;font-size:13px;color:var(--txt);font-family:var(--font);outline:none;transition:border-color .12s;appearance:none}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--jade3)}
+.form-input::placeholder,.form-textarea::placeholder{color:var(--txt3)}
+.form-textarea{resize:vertical;min-height:68px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chip-group{display:flex;flex-wrap:wrap;gap:6px}
+.fchip{font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;border:.5px solid var(--b2);color:var(--txt3);cursor:pointer;background:var(--bg3);transition:all .12s}
+.fchip:hover{background:var(--bg4)}
+.fchip.sel{background:var(--jade4);color:var(--jade);border-color:var(--jade3)}
+.emoji-grid{display:flex;gap:7px;flex-wrap:wrap}
+.emoji-btn{width:50px;height:50px;font-size:25px;background:var(--bg3);border:.5px solid var(--b1);border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.emoji-btn:hover,.emoji-btn.sel{background:var(--jade4);border-color:var(--jade3)}
+.btn-submit{width:100%;padding:12px;border-radius:11px;background:var(--jade2);color:#fff;font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:var(--font);margin-top:5px;transition:background .12s}
+.btn-submit:hover{background:var(--jade)}
+.btn-cancel{background:transparent;border:.5px solid var(--b2);color:var(--txt3);padding:8px 16px;border-radius:var(--rs);font-size:13px;cursor:pointer;font-family:var(--font);transition:all .12s}
+.btn-cancel:hover{background:var(--bg3);color:var(--txt2)}
+.btn-row{display:flex;gap:8px;margin-top:8px}
+.btn-row .btn-submit{flex:1;margin-top:0}
+.btn-danger{background:var(--redbg);border:.5px solid #4a1010;color:var(--red);padding:8px 16px;border-radius:var(--rs);font-size:13px;cursor:pointer;font-family:var(--font);transition:all .12s}
+.btn-danger:hover{background:#3a0e0e}
+.back-btn{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--jade);background:transparent;border:none;cursor:pointer;font-family:var(--font);margin-bottom:16px;padding:0}
+.back-btn:hover{opacity:.75}
+.back-btn svg{width:13px;height:13px;stroke:var(--jade);fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.upload-area{width:100%;max-height:260px;aspect-ratio:16/9;background:var(--bg3);border:1.5px dashed var(--b2);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:all .15s;overflow:hidden;position:relative}
+.upload-area:hover{border-color:var(--jade3);background:var(--bg4)}
+.upload-area img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.empty{text-align:center;padding:50px 20px}
+.empty-icon{font-size:50px;margin-bottom:12px}
+.empty-title{font-size:15px;font-weight:600;color:var(--txt);margin-bottom:5px}
+.empty-sub{font-size:12px;color:var(--txt3)}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:.5px solid var(--jade3);border-radius:var(--r);padding:11px 16px;font-size:13px;color:var(--jade);z-index:300;transform:translateY(80px);opacity:0;transition:all .25s;box-shadow:0 8px 32px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px}
+.toast.show{transform:translateY(0);opacity:1}
+.sync-code-box{background:var(--bg3);border:.5px solid var(--b2);border-radius:var(--rs);padding:10px 14px;font-family:var(--mono);font-size:18px;font-weight:700;color:var(--jade);text-align:center;letter-spacing:2px;margin:8px 0}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-overlay.open{display:block}
+  .main{margin-left:0}
+  .hamburger{display:flex}
+  .g3,.g4{grid-template-columns:1fr 1fr}
+  .g2{grid-template-columns:1fr}
+  .content{padding:14px}
+  .topbar{padding:0 14px}
+  .modal-sheet{max-width:100%}
+  .detail-hero{flex-wrap:wrap}
+}
+@media(max-width:480px){.g3,.g4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ── セットアップ画面 ── -->
+<div id="setup-screen" style="display:none">
+  <div class="setup-card">
+    <div class="setup-logo">
+      <div class="setup-logo-icon">🦎</div>
+      <div>
+        <div class="setup-logo-text">ReptiFeed</div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:2px">クラウド接続設定</div>
+      </div>
+    </div>
+
+    <div class="setup-steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Firebase プロジェクトを作成</div>
+          <div class="step-desc">
+            <a class="step-link" href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a>
+            を開いて「プロジェクトを作成」→ プロジェクト名（例: reptifeed）を入力 → 作成完了
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Firestore Database を有効化</div>
+          <div class="step-desc">左メニュー「Firestore Database」→「データベースを作成」→ 本番環境モード → 「次へ」→「有効にする」</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">セキュリティルールを設定</div>
+          <div class="step-desc">Firestore の「ルール」タブ → 以下に書き換えて「公開」<br>
+            <code style="font-size:10px;color:var(--amb);background:var(--bg3);padding:3px 6px;border-radius:4px;display:inline-block;margin-top:4px">rules_version = '2';<br>service cloud.firestore {<br>&nbsp; match /databases/{db}/documents {<br>&nbsp;&nbsp; match /{doc=**} { allow read, write: if true; }<br>&nbsp; }<br>}</code>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">設定情報をコピー</div>
+          <div class="step-desc">プロジェクトの「設定（⚙）」→「全般」→ 下にスクロール →「ウェブアプリを追加（&lt;/&gt;）」→ アプリ登録 → 表示された <code style="font-size:10px;background:var(--bg3);padding:2px 5px;border-radius:3px">firebaseConfig</code> の <strong style="color:var(--txt)">{ } の中身ごとコピー</strong>して下に貼り付け</div>
+        </div>
+      </div>
+    </div>
+
+    <textarea class="setup-textarea" id="fb-config-input" placeholder='ここに貼り付け（例）:
+{
+  apiKey: "AIzaSy...",
+  authDomain: "xxx.firebaseapp.com",
+  projectId: "xxx",
+  ...
+}'></textarea>
+    <div class="setup-error" id="fb-error"></div>
+    <button class="setup-btn" id="fb-connect-btn" onclick="connectFirebase()">接続する</button>
+    <div class="setup-note">データはご自身のFirebaseプロジェクトに保存されます。<br>無料プランで十分使用できます。</div>
+  </div>
+</div>
+
+<!-- ── アプリ本体 ── -->
+<div id="app-root" style="display:none">
+<div class="app">
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🦎</div>
+    <div>
+      <div class="logo-text">ReptiFeed</div>
+      <div class="logo-sub" id="sb-count">— 匹管理中</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-label">メニュー</div>
+    <button class="nav-item active" id="nav-home" onclick="navigate('home')"><span class="icon">⌂</span> ホーム</button>
+    <button class="nav-item" id="nav-calendar" onclick="navigate('calendar')"><span class="icon">📅</span> カレンダー</button>
+    <div class="nav-sep"></div>
+    <div class="nav-label">爬虫類</div>
+    <div id="sb-reptiles"></div>
+    <button class="nav-item" onclick="openAddReptile()" style="margin-top:4px"><span class="icon" style="color:var(--jade)">＋</span><span style="color:var(--jade)">新しく追加</span></button>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="sync-row" style="margin-bottom:6px">
+      <div id="sync-status" style="display:flex;align-items:center;gap:4px">
+        <span style="color:var(--txt3);font-size:10px">◌</span>
+        <span style="font-size:10px;color:var(--txt3)">接続中...</span>
+      </div>
+    </div>
+    <button class="nav-item" id="nav-settings" onclick="navigate('settings')"><span class="icon">⚙</span> 設定</button>
+  </div>
+</aside>
+<div class="sidebar-overlay" id="sb-ov" onclick="closeSidebar()"></div>
+
+<main class="main">
+  <header class="topbar">
+    <button class="hamburger" onclick="toggleSidebar()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--txt2)" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div class="topbar-title" id="tb-title">ホーム</div>
+    <button class="tb-btn" id="tb-action" onclick="openAddReptile()">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      爬虫類を追加
+    </button>
+  </header>
+  <div class="content">
+    <div class="page active" id="page-home">
+      <div id="alert-area"></div>
+      <div class="g4" id="summary" style="margin-bottom:18px"></div>
+      <div class="card"><div class="sec-lbl" style="margin-bottom:12px">あなたの爬虫類</div><div id="rlist"></div></div>
+    </div>
+    <div class="page" id="page-detail">
+      <button class="back-btn" onclick="navigate('home')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg> ホームに戻る</button>
+      <div id="detail-hero"></div>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('feeding',this)">給餌ログ</button>
+        <button class="tab-btn" onclick="switchTab('weight',this)">体重</button>
+        <button class="tab-btn" onclick="switchTab('photo',this)">写真</button>
+      </div>
+      <div class="tab-panel active" id="tab-feeding"></div>
+      <div class="tab-panel" id="tab-weight"></div>
+      <div class="tab-panel" id="tab-photo"></div>
+    </div>
+    <div class="page" id="page-calendar">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px" id="cal-filter"></div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="cal-hdr">
+          <button class="cal-nav" onclick="changeMonth(-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="cal-title" id="cal-title"></div>
+          <button class="cal-nav" onclick="changeMonth(1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+      <div class="card"><div class="sec-lbl" style="margin-bottom:12px">直近の給餌記録</div><div id="recent-logs"></div></div>
+    </div>
+    <div class="page" id="page-settings">
+      <div class="g2">
+        <div class="card">
+          <div class="sec-lbl" style="margin-bottom:12px">爬虫類の管理</div>
+          <div id="settings-list"></div>
+          <button class="tb-btn" onclick="openAddReptile()" style="width:100%;justify-content:center;margin-top:14px">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 新しく追加
+          </button>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="sec-lbl" style="margin-bottom:10px">アプリ情報</div>
+            <div style="font-size:12px;color:var(--txt3);margin-bottom:4px">バージョン: <span style="color:var(--txt2)">2.0.0</span></div>
+            <div style="font-size:12px;color:var(--txt3);margin-bottom:4px">管理中の爬虫類: <span style="color:var(--jade)" id="s-count"></span></div>
+            <div style="font-size:12px;color:var(--txt3)">総給餌回数: <span style="color:var(--jade)" id="s-feeds"></span></div>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="sec-lbl" style="margin-bottom:8px">📱 他のデバイスで使う</div>
+            <div style="font-size:11px;color:var(--txt3);margin-bottom:6px;line-height:1.6">このコードを別のデバイスで入力すると同じデータを使えます</div>
+            <div class="sync-code-box" id="sync-code-display">--------</div>
+            <button class="tb-btn" style="width:100%;justify-content:center;margin-top:8px" onclick="openSyncModal()">
+              別のデバイスと同期
+            </button>
+          </div>
+          <div class="card">
+            <div class="sec-lbl" style="margin-bottom:10px">⚠️ 危険な操作</div>
+            <button class="btn-danger" style="width:100%;margin-bottom:8px" onclick="if(confirm('Firebase接続を解除して再設定しますか？'))resetFirebase()">Firebase接続を変更</button>
+            <button class="btn-danger" style="width:100%" onclick="if(confirm('全データを削除しますか？'))clearAllData()">データを全削除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+</div>
+
+<!-- MODAL: 爬虫類 -->
+<div class="modal-ov" id="m-reptile">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="m-reptile-title">爬虫類を追加</div>
+    <div class="form-group"><label class="form-label">アイコン</label><div class="emoji-grid" id="emoji-grid"></div></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">名前 *</label><input class="form-input" id="f-name" placeholder="例：コーン"></div>
+      <div class="form-group"><label class="form-label">種類 *</label><input class="form-input" id="f-species" placeholder="例：コーンスネーク"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">性別</label><div class="chip-group"><div class="fchip sel" data-gender="オス" onclick="selChip(this,'gender')">オス</div><div class="fchip" data-gender="メス" onclick="selChip(this,'gender')">メス</div><div class="fchip" data-gender="不明" onclick="selChip(this,'gender')">不明</div></div></div>
+      <div class="form-group"><label class="form-label">給餌間隔（日）</label><input class="form-input" id="f-interval" type="number" min="1" max="30" value="7"></div>
+    </div>
+    <div class="form-group"><label class="form-label">誕生日（任意）</label><input class="form-input" id="f-birth" type="date"></div>
+    <div class="form-group"><label class="form-label">メモ</label><textarea class="form-textarea" id="f-notes" placeholder="飼育環境、特記事項など"></textarea></div>
+    <div class="btn-row"><button class="btn-cancel" onclick="closeModal('m-reptile')">キャンセル</button><button class="btn-submit" onclick="saveReptile()">登録する</button></div>
+  </div>
+</div>
+<!-- MODAL: 給餌 -->
+<div class="modal-ov" id="m-feed">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">給餌を記録 🍽</div>
+    <div class="form-group"><label class="form-label">餌の種類</label><div class="chip-group" id="food-chips"></div></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">量</label><input class="form-input" id="f-amount" placeholder="例: 1匹、5g"></div>
+      <div class="form-group"><label class="form-label">日時</label><input class="form-input" id="f-feed-date" type="datetime-local"></div>
+    </div>
+    <div class="form-group"><label class="form-label">食べた？</label><div class="chip-group"><div class="fchip sel" data-ate="true" onclick="selChip(this,'ate')">完食</div><div class="fchip" data-ate="false" onclick="selChip(this,'ate')">拒食</div></div></div>
+    <div class="form-group"><label class="form-label">メモ</label><input class="form-input" id="f-feed-notes" placeholder="様子など"></div>
+    <div class="btn-row"><button class="btn-cancel" onclick="closeModal('m-feed')">キャンセル</button><button class="btn-submit" onclick="saveFeed()">記録する</button></div>
+  </div>
+</div>
+<!-- MODAL: 体重 -->
+<div class="modal-ov" id="m-weight">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">体重を記録 ⚖️</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">体重（g）</label><input class="form-input" id="f-grams" type="number" min="0" step="0.1" placeholder="例: 182.5"></div>
+      <div class="form-group"><label class="form-label">計測日</label><input class="form-input" id="f-wdate" type="date"></div>
+    </div>
+    <div class="form-group"><label class="form-label">メモ</label><input class="form-input" id="f-wnotes" placeholder="気になった点など"></div>
+    <div class="btn-row"><button class="btn-cancel" onclick="closeModal('m-weight')">キャンセル</button><button class="btn-submit" onclick="saveWeight()">記録する</button></div>
+  </div>
+</div>
+<!-- MODAL: 同期コード -->
+<div class="modal-ov" id="m-sync">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📱 デバイス間同期</div>
+    <p style="font-size:12px;color:var(--txt3);margin-bottom:16px;line-height:1.6">別のスマホやPCでこのアプリを開き、「同期コードを入力」から以下のコードを入力すると同じデータが使えます。</p>
+    <div class="form-group"><label class="form-label">あなたの同期コード</label><div class="sync-code-box" id="sync-code-modal">--------</div></div>
+    <div class="form-group" style="margin-top:16px"><label class="form-label">または別のコードに切り替え</label><input class="form-input" id="f-sync-code" placeholder="他のデバイスのコードを入力" style="text-transform:uppercase;letter-spacing:2px"></div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="closeModal('m-sync')">閉じる</button>
+      <button class="btn-submit" style="margin-top:0" onclick="applySyncCode()">このコードに切り替え</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const FOODS=['冷凍マウス','コオロギ','デュビア','ミルワーム','野菜・果物','人工飼料','活餌','その他'];
+const EMOJIS=['🐍','🦎','🦖','🐢','🦕','🐊'];
+const UID_KEY='reptifeed_uid';
+
+function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
+function getSyncId(){let id=localStorage.getItem(UID_KEY);if(!id){id=uid();localStorage.setItem(UID_KEY,id)}return id}
+
+// ── DATA (delegate to window.DB) ──
+function load(){return window.DB?window.DB.load():{reptiles:[]}}
+async function save(d){if(window.DB)await window.DB.save(d)}
+
+function makeSampleData(){
+  const ago=n=>new Date(Date.now()-n*864e5).toISOString();
+  const mAgo=m=>{const dt=new Date();dt.setMonth(dt.getMonth()-m);return dt.toISOString().slice(0,10)};
+  return{reptiles:[
+    {id:uid(),name:'コーン',species:'コーンスネーク',gender:'オス',emoji:'🐍',interval:7,
+      birthDate:new Date(new Date().getFullYear()-2,new Date().getMonth(),new Date().getDate()).toISOString().slice(0,10),
+      notes:'',photoData:null,
+      feedLogs:[{id:uid(),date:ago(9),food:'冷凍マウス',amount:'1匹',ate:true,notes:''},{id:uid(),date:ago(16),food:'冷凍マウス',amount:'1匹',ate:false,notes:'拒食'},{id:uid(),date:ago(23),food:'冷凍マウス',amount:'1匹',ate:true,notes:''}],
+      weightLogs:[{id:uid(),date:new Date(Date.now()-9*864e5).toISOString().slice(0,10),grams:182,notes:''},{id:uid(),date:mAgo(1),grams:175,notes:''},{id:uid(),date:mAgo(2),grams:168,notes:''}]},
+    {id:uid(),name:'レオ',species:'ヒョウモントカゲモドキ',gender:'メス',emoji:'🦎',interval:3,
+      birthDate:new Date(new Date().getFullYear()-1,new Date().getMonth(),new Date().getDate()).toISOString().slice(0,10),
+      notes:'',photoData:null,
+      feedLogs:[{id:uid(),date:ago(2),food:'コオロギ',amount:'5匹',ate:true,notes:''},{id:uid(),date:ago(5),food:'コオロギ',amount:'6匹',ate:true,notes:''},{id:uid(),date:ago(8),food:'デュビア',amount:'4匹',ate:true,notes:''}],
+      weightLogs:[{id:uid(),date:new Date(Date.now()-2*864e5).toISOString().slice(0,10),grams:58,notes:''},{id:uid(),date:mAgo(1),grams:54,notes:''}]},
+    {id:uid(),name:'グリーン',species:'グリーンイグアナ',gender:'オス',emoji:'🦖',interval:1,birthDate:'',notes:'',photoData:null,
+      feedLogs:[{id:uid(),date:ago(1),food:'野菜・果物',amount:'適量',ate:true,notes:''}],weightLogs:[]}
+  ]};
+}
+window.makeSampleData=makeSampleData;
+
+// ── HELPERS ──
+function status(r){const l=lastFed(r);if(!l)return'unknown';const d=Math.floor((Date.now()-new Date(l))/864e5);return d>=r.interval?'overdue':d>=r.interval-1?'soon':'ok'}
+function lastFed(r){return r.feedLogs.slice().sort((a,b)=>new Date(b.date)-new Date(a.date))[0]?.date||null}
+function daysSince(r){const l=lastFed(r);return l?Math.floor((Date.now()-new Date(l))/864e5):null}
+function latestW(r){return r.weightLogs.slice().sort((a,b)=>new Date(b.date)-new Date(a.date))[0]||null}
+function fmtW(g){return g>=1000?(g/1000).toFixed(2)+'kg':g.toFixed(1)+'g'}
+function fmtDate(iso){const d=new Date(iso);return`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${'日月火水木金土'[d.getDay()]}`}
+function fmtDays(n){return n===0?'今日':n===1?'昨日':n+'日経過'}
+function pillClass(s){return{overdue:'pr',soon:'pa',ok:'pj',unknown:'pg'}[s]}
+function pillLabel(s){return{overdue:'要給餌',soon:'まもなく',ok:'問題なし',unknown:'未記録'}[s]}
+function dotColor(s){return{overdue:'var(--red)',soon:'var(--amb)',ok:'var(--jade)',unknown:'var(--txt3)'}[s]}
+function age(r){if(!r.birthDate)return'';const diff=Math.floor((Date.now()-new Date(r.birthDate))/864e5);const y=Math.floor(diff/365),m=Math.floor((diff%365)/30);return y>0?y+'歳':m+'ヶ月'}
+function toDate(iso){const d=new Date(iso);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+
+let page='home',repId=null,calState={y:new Date().getFullYear(),m:new Date().getMonth(),filter:null},wChart=null,editId=null;
+
+// ── NAVIGATION ──
+function navigate(p){
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-item[id^="nav-"]').forEach(el=>el.classList.remove('active'));
+  page=p;document.getElementById('page-'+p).classList.add('active');
+  const navEl=document.getElementById('nav-'+p);if(navEl)navEl.classList.add('active');
+  const titles={home:'ホーム',calendar:'カレンダー',settings:'設定',detail:repId?load().reptiles.find(r=>r.id===repId)?.name||'詳細':'詳細'};
+  document.getElementById('tb-title').textContent=titles[p]||p;
+  document.getElementById('tb-action').style.display=p==='home'?'flex':'none';
+  if(p==='home')renderHome();else if(p==='calendar')renderCalendar();else if(p==='settings')renderSettings();else if(p==='detail')renderDetail();
+  closeSidebar();
+}
+function openDetail(id){repId=id;navigate('detail')}
+window.refreshAll=function(){if(page==='home')renderHome();else if(page==='calendar')renderCalendar();else if(page==='settings')renderSettings();else if(page==='detail')renderDetail();renderSidebar()}
+
+// ── SIDEBAR ──
+function renderSidebar(){
+  const d=load();
+  document.getElementById('sb-count').textContent=d.reptiles.length+'匹管理中';
+  document.getElementById('sb-reptiles').innerHTML=d.reptiles.map(r=>`
+    <div class="rni ${repId===r.id&&page==='detail'?'active':''}" onclick="openDetail('${r.id}')">
+      <div class="rni-emo">${r.photoData?`<img src="${r.photoData}">`:`<span>${r.emoji}</span>`}</div>
+      <div style="flex:1;min-width:0"><div class="rni-name">${r.name}</div><div class="rni-sp">${r.species}</div></div>
+      <div class="sdot" style="background:${dotColor(status(r))}"></div>
+    </div>`).join('');
+}
+function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('sb-ov').classList.toggle('open')}
+function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sb-ov').classList.remove('open')}
+
+// ── HOME ──
+function renderHome(){
+  const d=load();
+  const ov=d.reptiles.filter(r=>status(r)==='overdue'),sn=d.reptiles.filter(r=>status(r)==='soon'),ok=d.reptiles.filter(r=>['ok','unknown'].includes(status(r)));
+  const aa=document.getElementById('alert-area');
+  if(ov.length){const r=ov[0];aa.innerHTML=`<div class="alert-banner" onclick="openDetail('${r.id}')"><div class="alert-icon">${r.emoji}</div><div><div class="alert-title">${r.name}の給餌タイミングです</div><div class="alert-sub">前回から ${daysSince(r)}日 が経過しています</div></div><span style="margin-left:auto;color:var(--jade2);font-size:18px">›</span></div>`}
+  else aa.innerHTML='';
+  document.getElementById('summary').innerHTML=[{n:ov.length,l:'要給餌',c:'var(--red)'},{n:sn.length,l:'まもなく',c:'var(--amb)'},{n:ok.length,l:'問題なし',c:'var(--jade)'},{n:d.reptiles.length,l:'管理中',c:'var(--txt2)'}]
+    .map(x=>`<div class="stat-card"><div class="stat-val" style="color:${x.c}">${x.n}</div><div class="stat-lbl">${x.l}</div></div>`).join('');
+  const sorted=[...d.reptiles].sort((a,b)=>['overdue','soon','unknown','ok'].indexOf(status(a))-['overdue','soon','unknown','ok'].indexOf(status(b)));
+  const el=document.getElementById('rlist');
+  if(!sorted.length){el.innerHTML=`<div class="empty"><div class="empty-icon">🦎</div><div class="empty-title">爬虫類を追加しましょう</div><div class="empty-sub">上の「爬虫類を追加」から登録できます</div></div>`;return}
+  el.innerHTML=sorted.map(r=>{
+    const s=status(r),ds=daysSince(r),w=latestW(r);
+    return`<div class="rrow" onclick="openDetail('${r.id}')">
+      <div class="rrow-emo">${r.photoData?`<img src="${r.photoData}">`:r.emoji}</div>
+      <div style="flex:1"><div class="rrow-name">${r.name}</div><div class="rrow-sp">${r.species}${r.gender!=='不明'?' · '+r.gender:''}</div>${w?`<div style="font-size:10px;color:var(--txt3);margin-top:2px">⚖ ${fmtW(w.grams)}</div>`:''}</div>
+      <div style="text-align:right"><span class="pill ${pillClass(s)}">${pillLabel(s)}</span><div class="days-ago">${ds!==null?fmtDays(ds):'未記録'}</div></div>
+    </div>`}).join('');
+  renderSidebar();
+}
+
+// ── DETAIL ──
+function renderDetail(){
+  const d=load();const r=d.reptiles.find(x=>x.id===repId);if(!r)return;
+  const s=status(r),ds=daysSince(r),a=age(r);
+  const stC={overdue:'var(--red)',soon:'var(--amb)',ok:'var(--jade)',unknown:'var(--txt3)'}[s];
+  const stB={overdue:'var(--redbg)',soon:'var(--ambbg)',ok:'var(--jade4)',unknown:'var(--bg3)'}[s];
+  document.getElementById('detail-hero').innerHTML=`
+    <div class="detail-photo" onclick="document.getElementById('ph-input').click()">
+      ${r.photoData?`<img src="${r.photoData}">`:`<span style="font-size:44px">${r.emoji}</span>`}
+      <div class="photo-ov">📷</div>
+    </div>
+    <input type="file" id="ph-input" accept="image/*" style="display:none" onchange="handlePhoto(event)">
+    <div style="flex:1">
+      <div class="detail-name">${r.name}</div><div class="detail-sp">${r.species}</div>
+      <div class="detail-tags">${r.gender!=='不明'?`<span class="tag">${r.gender}</span>`:''} ${a?`<span class="tag">${a}</span>`:''} <span class="tag" style="background:${stB};color:${stC}">${pillLabel(s)}</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button class="tb-btn" onclick="openFeedModal()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 給餌を記録</button>
+        <button class="tb-btn" onclick="openWeightModal()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 体重を記録</button>
+        <button class="btn-cancel" onclick="openEditReptile('${r.id}')">編集</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-self:flex-start">
+      ${[{v:r.interval+'日',l:'給餌間隔'},{v:ds!==null?fmtDays(ds):'未記録',l:'最終給餌'},{v:r.feedLogs.length+'回',l:'累計'}].map(x=>`<div class="stat-card" style="text-align:center;padding:10px 14px"><div style="font-size:17px;font-weight:700;color:var(--jade);font-family:var(--mono)">${x.v}</div><div class="stat-lbl">${x.l}</div></div>`).join('')}
+    </div>`;
+  renderFeedTab(r);renderWeightTab(r);renderPhotoTab(r);
+  document.getElementById('tb-title').textContent=r.name;renderSidebar();
+}
+
+function renderFeedTab(r){
+  const logs=[...r.feedLogs].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const el=document.getElementById('tab-feeding');
+  if(!logs.length){el.innerHTML=`<div class="empty"><div class="empty-icon">🍽</div><div class="empty-title">給餌記録がありません</div></div>`;return}
+  el.innerHTML=`<div class="sec-lbl" style="margin-bottom:12px">給餌ログ（${logs.length}件）</div>`+
+    logs.map(l=>`<div class="log-item">
+      <div class="log-ind" style="background:${l.ate?'var(--jade)':'var(--txt3)'}"></div>
+      <div class="log-date">${fmtDate(l.date)}</div>
+      <div style="flex:1"><div class="log-food">${l.food}</div><div class="log-amt" style="color:${l.ate?'var(--jade)':'var(--amb)'}">${l.ate?l.amount:'拒食'}</div>${l.notes?`<div style="font-size:10px;color:var(--txt3);margin-top:2px">${l.notes}</div>`:''}</div>
+      <button class="del-btn" onclick="delFeed('${r.id}','${l.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+    </div>`).join('');
+}
+
+function renderWeightTab(r){
+  const logs=[...r.weightLogs].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const el=document.getElementById('tab-weight');
+  let html='<div class="sec-lbl" style="margin-bottom:12px">体重推移</div>';
+  if(logs.length>=2)html+=`<div class="card" style="margin-bottom:14px"><div class="chart-wrap"><canvas id="wc"></canvas></div></div>`;
+  if(logs.length){const lat=logs[logs.length-1],prev=logs.length>=2?logs[logs.length-2]:null,diff=prev?lat.grams-prev.grams:null;
+    html+=`<div class="g2" style="margin-bottom:14px"><div class="stat-card"><div class="stat-val" style="color:var(--jade)">${fmtW(lat.grams)}</div><div class="stat-lbl">最新体重</div></div>${diff!==null?`<div class="stat-card"><div class="stat-val" style="color:${diff>=0?'var(--jade)':'var(--red)'}">${diff>=0?'+':''}${diff.toFixed(1)}g</div><div class="stat-lbl">前回比</div></div>`:''}</div>`}
+  html+='<div class="sec-lbl" style="margin-bottom:8px">記録一覧</div>';
+  if(!logs.length)html+=`<div class="empty"><div class="empty-icon">⚖️</div><div class="empty-title">体重記録がありません</div></div>`;
+  else html+=[...logs].reverse().map(l=>`<div class="log-item"><div class="log-ind" style="background:var(--jade)"></div><div class="log-date">${l.date}</div><div style="flex:1"><div class="log-amt" style="color:var(--jade)">${fmtW(l.grams)}</div>${l.notes?`<div style="font-size:10px;color:var(--txt3)">${l.notes}</div>`:''}</div><button class="del-btn" onclick="delWeight('${r.id}','${l.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div>`).join('');
+  el.innerHTML=html;
+  if(logs.length>=2)setTimeout(()=>{const ctx=document.getElementById('wc');if(!ctx)return;if(wChart){wChart.destroy();wChart=null}wChart=new Chart(ctx,{type:'line',data:{labels:logs.map(l=>l.date.slice(5)),datasets:[{data:logs.map(l=>l.grams),borderColor:'#00c97b',backgroundColor:'rgba(0,201,123,.08)',borderWidth:2,pointBackgroundColor:'#00c97b',pointRadius:5,fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#192b1e'},ticks:{color:'#3d5e48',font:{family:'DM Mono'}}},y:{grid:{color:'#192b1e'},ticks:{color:'#3d5e48',callback:v=>v+'g',font:{family:'DM Mono'}}}}}})},100);
+}
+
+function renderPhotoTab(r){
+  document.getElementById('tab-photo').innerHTML=`
+    <div class="sec-lbl" style="margin-bottom:12px">写真</div>
+    <div class="upload-area" onclick="document.getElementById('ph-input').click()">
+      ${r.photoData?`<img src="${r.photoData}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:var(--r)">`:`<div style="font-size:36px">📸</div><div style="font-size:13px;color:var(--txt3)">クリックして写真を選ぶ</div>`}
+    </div>
+    ${r.photoData?`<div style="display:flex;gap:8px;margin-top:12px"><button class="tb-btn" onclick="document.getElementById('ph-input').click()">📷 写真を変更</button><button class="btn-danger" onclick="delPhoto('${r.id}')">削除</button></div>`:''}`;
+}
+
+function switchTab(name){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));const idx=['feeding','weight','photo'].indexOf(name);document.querySelectorAll('.tab-btn')[idx]?.classList.add('active');document.getElementById('tab-'+name)?.classList.add('active')}
+
+// ── CALENDAR ──
+function renderCalendar(){
+  const d=load();
+  document.getElementById('cal-filter').innerHTML=`<div class="filter-chip ${!calState.filter?'active':''}" onclick="setCalFilter(null)">全員</div>`+
+    d.reptiles.map(r=>`<div class="filter-chip ${calState.filter===r.id?'active':''}" onclick="setCalFilter('${r.id}')">${r.emoji} ${r.name}</div>`).join('');
+  const months=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('cal-title').textContent=`${calState.y}年 ${months[calState.m]}`;
+  const allLogs=calState.filter?(d.reptiles.find(r=>r.id===calState.filter)?.feedLogs||[]):d.reptiles.flatMap(r=>r.feedLogs);
+  const fedSet=new Set(allLogs.filter(l=>l.ate).map(l=>toDate(l.date)));
+  const first=new Date(calState.y,calState.m,1),dim=new Date(calState.y,calState.m+1,0).getDate(),sd=first.getDay(),today=toDate(new Date());
+  let g=['日','月','火','水','木','金','土'].map(d=>`<div class="cal-wday">${d}</div>`).join('');
+  for(let i=0;i<sd;i++)g+='<div class="cal-day empty"></div>';
+  for(let day=1;day<=dim;day++){const ds=`${calState.y}-${String(calState.m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;g+=`<div class="cal-day ${ds===today?'today':''} ${fedSet.has(ds)?'fed':''}">${day}</div>`}
+  document.getElementById('cal-grid').innerHTML=g;
+  const recent=[...allLogs].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,10);
+  document.getElementById('recent-logs').innerHTML=!recent.length?`<div style="text-align:center;padding:24px;color:var(--txt3)">記録がありません</div>`:
+    recent.map(l=>{const own=d.reptiles.find(r=>r.feedLogs.some(f=>f.id===l.id));return`<div class="log-item"><span style="font-size:17px;margin-right:4px">${own?.emoji||''}</span><div class="log-date">${fmtDate(l.date)}</div><div style="flex:1"><div class="log-food">${own?.name||''} · ${l.food}</div></div><div class="log-amt" style="color:${l.ate?'var(--jade)':'var(--amb)'}">${l.ate?l.amount:'拒食'}</div></div>`}).join('');
+}
+function changeMonth(dir){calState.m+=dir;if(calState.m>11){calState.m=0;calState.y++}if(calState.m<0){calState.m=11;calState.y--}renderCalendar()}
+function setCalFilter(id){calState.filter=id;renderCalendar()}
+
+// ── SETTINGS ──
+function renderSettings(){
+  const d=load();
+  document.getElementById('s-count').textContent=d.reptiles.length+'匹';
+  document.getElementById('s-feeds').textContent=d.reptiles.reduce((a,r)=>a+r.feedLogs.length,0)+'回';
+  document.getElementById('settings-list').innerHTML=d.reptiles.map(r=>`
+    <div class="rrow"><div class="rrow-emo">${r.photoData?`<img src="${r.photoData}">`:r.emoji}</div><div style="flex:1"><div class="rrow-name">${r.name}</div><div class="rrow-sp">${r.species}</div></div>
+    <div style="display:flex;gap:6px"><button class="btn-cancel" style="padding:5px 10px;font-size:11px" onclick="openEditReptile('${r.id}')">編集</button><button class="btn-danger" style="padding:5px 10px;font-size:11px" onclick="delReptile('${r.id}')">削除</button></div></div>`).join('');
+  const code=getSyncId().slice(0,8).toUpperCase();
+  const el=document.getElementById('sync-code-display');if(el)el.textContent=code;
+}
+
+// ── MODALS ──
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.modal-ov').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open')}));
+function selChip(el,group){el.closest('.chip-group').querySelectorAll('.fchip').forEach(c=>c.classList.remove('sel'));el.classList.add('sel')}
+function selEmoji(el){document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.remove('sel'));el.classList.add('sel')}
+function renderEmojiGrid(sel){document.getElementById('emoji-grid').innerHTML=EMOJIS.map(e=>`<div class="emoji-btn ${e===sel?'sel':''}" onclick="selEmoji(this)">${e}</div>`).join('')}
+
+function openAddReptile(){editId=null;document.getElementById('m-reptile-title').textContent='爬虫類を追加';['f-name','f-species','f-birth','f-notes'].forEach(id=>document.getElementById(id).value='');document.getElementById('f-interval').value='7';document.querySelectorAll('[data-gender]').forEach(c=>c.classList.toggle('sel',c.dataset.gender==='オス'));renderEmojiGrid('🐍');openModal('m-reptile')}
+function openEditReptile(id){const r=load().reptiles.find(x=>x.id===id);if(!r)return;editId=id;document.getElementById('m-reptile-title').textContent=r.name+'を編集';document.getElementById('f-name').value=r.name;document.getElementById('f-species').value=r.species;document.getElementById('f-interval').value=r.interval;document.getElementById('f-birth').value=r.birthDate||'';document.getElementById('f-notes').value=r.notes||'';document.querySelectorAll('[data-gender]').forEach(c=>c.classList.toggle('sel',c.dataset.gender===r.gender));renderEmojiGrid(r.emoji);openModal('m-reptile')}
+
+async function saveReptile(){
+  const name=document.getElementById('f-name').value.trim(),species=document.getElementById('f-species').value.trim();
+  if(!name||!species){alert('名前と種類は必須です');return}
+  const emoji=document.querySelector('.emoji-btn.sel')?.textContent||'🦎';
+  const gender=document.querySelector('[data-gender].sel')?.dataset.gender||'不明';
+  const interval=parseInt(document.getElementById('f-interval').value)||7;
+  const birthDate=document.getElementById('f-birth').value||null;
+  const notes=document.getElementById('f-notes').value;
+  const d=load();
+  if(editId){const r=d.reptiles.find(x=>x.id===editId);if(r)Object.assign(r,{name,species,gender,emoji,interval,birthDate,notes})}
+  else d.reptiles.push({id:uid(),name,species,gender,emoji,interval,birthDate,notes,photoData:null,feedLogs:[],weightLogs:[]});
+  await save(d);closeModal('m-reptile');toast('保存しました');refresh();
+}
+async function delReptile(id){
+  if(!confirm('削除しますか？'))return;
+  const d=load();d.reptiles=d.reptiles.filter(r=>r.id!==id);
+  await save(d);if(repId===id){repId=null;navigate('home')}else refresh();toast('削除しました');
+}
+
+function openFeedModal(){const now=new Date();now.setMinutes(now.getMinutes()-now.getTimezoneOffset());document.getElementById('f-feed-date').value=now.toISOString().slice(0,16);document.getElementById('f-amount').value='';document.getElementById('f-feed-notes').value='';document.querySelectorAll('[data-ate]').forEach((c,i)=>c.classList.toggle('sel',i===0));document.getElementById('food-chips').innerHTML=FOODS.map((f,i)=>`<div class="fchip ${i===0?'sel':''}" data-food="${f}" onclick="selChip(this,'food')">${f}</div>`).join('');openModal('m-feed')}
+async function saveFeed(){
+  const food=document.querySelector('[data-food].sel')?.dataset.food||FOODS[0];
+  const amount=document.getElementById('f-amount').value.trim()||'—';
+  const ate=document.querySelector('[data-ate].sel')?.dataset.ate!=='false';
+  const date=document.getElementById('f-feed-date').value||new Date().toISOString();
+  const notes=document.getElementById('f-feed-notes').value;
+  const d=load();const r=d.reptiles.find(x=>x.id===repId);if(!r)return;
+  r.feedLogs.unshift({id:uid(),date,food,amount,ate,notes});await save(d);closeModal('m-feed');toast('給餌を記録しました');renderDetail();
+}
+
+function openWeightModal(){document.getElementById('f-grams').value='';document.getElementById('f-wdate').value=new Date().toISOString().slice(0,10);document.getElementById('f-wnotes').value='';openModal('m-weight')}
+async function saveWeight(){
+  const g=parseFloat(document.getElementById('f-grams').value);if(isNaN(g)||g<=0){alert('体重を入力してください');return}
+  const date=document.getElementById('f-wdate').value,notes=document.getElementById('f-wnotes').value;
+  const d=load();const r=d.reptiles.find(x=>x.id===repId);if(!r)return;
+  r.weightLogs.unshift({id:uid(),date,grams:g,notes});await save(d);closeModal('m-weight');toast('体重を記録しました');renderDetail();switchTab('weight');
+}
+
+async function delFeed(rid,lid){if(!confirm('削除しますか？'))return;const d=load();const r=d.reptiles.find(x=>x.id===rid);if(r)r.feedLogs=r.feedLogs.filter(l=>l.id!==lid);await save(d);renderDetail();toast('削除しました')}
+async function delWeight(rid,lid){if(!confirm('削除しますか？'))return;const d=load();const r=d.reptiles.find(x=>x.id===rid);if(r)r.weightLogs=r.weightLogs.filter(l=>l.id!==lid);await save(d);renderDetail();toast('削除しました')}
+async function delPhoto(rid){const d=load();const r=d.reptiles.find(x=>x.id===rid);if(r)r.photoData=null;const photos=JSON.parse(localStorage.getItem('reptifeed_photos')||'{}');delete photos[rid];localStorage.setItem('reptifeed_photos',JSON.stringify(photos));await save(d);renderDetail();toast('写真を削除しました')}
+
+function handlePhoto(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const img=new Image();
+    img.onload=async()=>{
+      const canvas=document.createElement('canvas');const max=800;
+      let w=img.width,h=img.height;if(w>max||h>max){const r=max/Math.max(w,h);w=Math.round(w*r);h=Math.round(h*r)}
+      canvas.width=w;canvas.height=h;canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const data=canvas.toDataURL('image/jpeg',.8);
+      const d=load();const r=d.reptiles.find(x=>x.id===repId);
+      if(r){r.photoData=data;await save(d);renderDetail();toast('写真を保存しました')}
+    };img.src=ev.target.result;
+  };reader.readAsDataURL(file);
+}
+
+async function clearAllData(){
+  const d={reptiles:[]};await save(d);localStorage.removeItem('reptifeed_photos');location.reload();
+}
+
+// ── 同期コード ──
+function openSyncModal(){
+  document.getElementById('sync-code-modal').textContent=getSyncId().slice(0,8).toUpperCase();
+  document.getElementById('f-sync-code').value='';
+  openModal('m-sync');
+}
+function applySyncCode(){
+  const code=document.getElementById('f-sync-code').value.trim().toLowerCase();
+  if(code.length<6){alert('コードが短すぎます');return}
+  if(!confirm('同期コードを切り替えますか？\n（別デバイスのデータに切り替わります）'))return;
+  localStorage.setItem(UID_KEY,code);
+  closeModal('m-sync');toast('切り替えました。再読み込みします...');
+  setTimeout(()=>location.reload(),1000);
+}
+
+function toast(msg){const el=document.getElementById('toast');el.textContent='✓ '+msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2200)}
+function refresh(){if(page==='home')renderHome();else if(page==='calendar')renderCalendar();else if(page==='settings')renderSettings();else if(page==='detail')renderDetail();renderSidebar()}
+</script>
+</body>
+</html>
